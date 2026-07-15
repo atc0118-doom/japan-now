@@ -389,19 +389,61 @@ function extractActiveWarningNames(data){
 
 // ---- Earthquakes / volcanoes ----
 
+// FIX: this used to just take the 10 most recent entries from the combined
+// earthquake+volcano feed, sorted purely by time. In practice, JMA issues
+// routine "降灰予報（定時）" (scheduled ashfall forecast) bulletins for every
+// volcano currently under any watch level, on a recurring schedule,
+// regardless of whether anything is actually happening. When several
+// volcanoes are under watch at once, these routine bulletins can fill all
+// 10 slots by themselves — meaning an actual earthquake report from
+// slightly earlier could be pushed out and never shown at all, on a section
+// literally titled "地震・火山情報". JMA's own naming convention already
+// distinguishes "定時" (scheduled/routine) from other report types (e.g.
+// 震度速報, 地震情報, 噴火速報, 噴火警報) — using that distinction to prioritize
+// actual events over routine noise, rather than inventing a new heuristic.
+function isRoutineBulletin(title){
+  return /（定時）|\(定時\)/.test(title);
+}
+
 async function fetchEarthquakes(){
   const r = await fetchWithTimeout(JMA_EQVOL_FEED_URL, { headers:{ 'user-agent':'JapanNow/1.0' } });
   if(!r.ok) throw new Error('jma_eqvol ' + r.status);
   const xml = await r.text();
   const entries = [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map(m=>m[1]);
-  return entries.map(block=>{
+  const parsed = entries.map(block=>{
     const title = decodeXml(block.match(/<title>([\s\S]*?)<\/title>/)?.[1] || '');
     const updated = decodeXml(block.match(/<updated>([\s\S]*?)<\/updated>/)?.[1] || '');
     const content = decodeXml(block.match(/<content[^>]*>([\s\S]*?)<\/content>/)?.[1] || '');
     const link = block.match(/<link href="([^"]*)"/)?.[1] || '';
-    return { title: clean(title), updated, summary: clean(content).slice(0, 200), url: link };
+    return { title: clean(title), updated, summary: clean(content).slice(0, 200), url: link, isRoutine: isRoutineBulletin(title) };
   }).filter(e=>e.title)
     .sort((a,b)=> new Date(b.updated||0) - new Date(a.updated||0));
+
+  return prioritizeEarthquakeEntries(parsed);
+}
+
+// Pulled out as its own function so it can be unit-tested without a network
+// call — see tests/japan.test.mjs.
+function prioritizeEarthquakeEntries(parsed){
+  const urgent = parsed.filter(e => !e.isRoutine);
+  const routine = parsed.filter(e => e.isRoutine);
+
+  // Routine bulletins are also deduped by volcano name (the part inside
+  // 【火山名 ...】), keeping only the freshest one per mountain — otherwise
+  // the same volcano can appear multiple times as JMA reissues its routine
+  // bulletin throughout the day.
+  const seenVolcano = new Set();
+  const dedupedRoutine = [];
+  for(const e of routine){
+    const volcano = e.title.match(/【火山名\s*([^\s】]+)/)?.[1] || e.title;
+    if(seenVolcano.has(volcano)) continue;
+    seenVolcano.add(volcano);
+    dedupedRoutine.push(e);
+  }
+
+  // Urgent entries always win the available slots first; routine ones only
+  // fill whatever room is left.
+  return [...urgent, ...dedupedRoutine];
 }
 
 function fallbackPayload(error){
@@ -423,4 +465,4 @@ function fallbackPayload(error){
 
 // Named exports for unit testing pure logic (does not affect the default
 // export Vercel invokes — same pattern used in ORACLE's api/risk.js).
-export { dedupeByTitleStem, extractActiveWarningNames, parseRss, clean, decodeXml, groupWarningsByPrefecture };
+export { dedupeByTitleStem, extractActiveWarningNames, parseRss, clean, decodeXml, groupWarningsByPrefecture, prioritizeEarthquakeEntries, isRoutineBulletin };
