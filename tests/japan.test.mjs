@@ -19,7 +19,7 @@ import {
   decodeXml,
   groupWarningsByPrefecture,
   prioritizeEarthquakeEntries,
-  isRoutineBulletin
+  isRoutineBulletin,
 } from '../api/japan.js';
 
 // Trimmed down but structurally real fixture (captured live, then trimmed
@@ -322,3 +322,4 @@ test('parseRss does not filter out a normal headline that merely contains simila
   const items = parseRss(xml, 'Test');
   assert.equal(items.length, 1);
 });
+
