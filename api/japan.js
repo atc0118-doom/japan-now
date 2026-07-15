@@ -131,6 +131,21 @@ async function buildPayload(){
   // failure across every source is a different, distinguishable situation.
   const isDegraded = !anyLiveNews && !anyLiveDisaster;
 
+  // FIX: this top-level isDegraded flag only catches the case where EVERY
+  // source failed at once. It's entirely possible for news to succeed while
+  // warnings specifically fail (e.g. >50% of JMA offices unreachable) — in
+  // that case `mode` would still say 'live' (because news came through),
+  // giving the frontend no way to know warnings/earthquakes specifically
+  // failed. The frontend's renderWarnings/renderQuakes were using this gap
+  // to render "現在、アクティブな警報はありません" (no active warnings) even when
+  // the real situation was "we don't know, the fetch failed" — a
+  // meaningfully different and more dangerous claim for a page whose whole
+  // point is showing active warnings. These per-category flags close that
+  // gap; each section can now tell the two situations apart independently.
+  const newsOk = newsReport.some(r => r.ok);
+  const warningsOk = !warningsError;
+  const quakesOk = !quakesError;
+
   return {
     ok: true,
     mode: isDegraded ? 'degraded' : 'live',
@@ -140,13 +155,16 @@ async function buildPayload(){
     cacheTtlMinutes: Math.round(CACHE_TTL_MS / 60000),
     news: news.slice(0, 30),
     newsCount: news.length,
+    newsOk,
     warnings, // only prefectures with an ACTIVE warning/advisory right now — see fetchAllWarnings
     warningCount: warnings.length,
+    warningsOk,
     earthquakes: quakes.slice(0, 10),
+    quakesOk,
     sourceReport: [
       ...newsReport,
-      { name:'JMA Warnings', ok: !warningsError, error: warningsError || undefined },
-      { name:'JMA Earthquakes', ok: !quakesError, error: quakesError || undefined }
+      { name:'JMA Warnings', ok: warningsOk, error: warningsError || undefined },
+      { name:'JMA Earthquakes', ok: quakesOk, error: quakesError || undefined }
     ]
   };
 }
@@ -209,7 +227,18 @@ function parseRss(xml, fallbackSource='RSS'){
 }
 
 function decodeXml(s=''){
-  return String(s).replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'");
+  // FIX: this only handled the five core XML entities (amp/lt/gt/quot/#39).
+  // Confirmed root cause of a persistent bug: some titles use a literal
+  // "&nbsp;" (or its numeric form "&#160;") as the space around a separator
+  // instead of a real whitespace character. Left undecoded, "&nbsp;" is 6
+  // literal characters — not whitespace — so the title-cleanup regex's \s+
+  // requirement around the separator never matched, and the outlet-name
+  // suffix was never stripped at all. Confirmed by reproducing the exact
+  // failure with a constructed "&nbsp;|&nbsp;" separator before this fix.
+  return String(s)
+    .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+    .replace(/&quot;/g,'"').replace(/&#39;/g,"'")
+    .replace(/&nbsp;/g,' ').replace(/&#160;/g,' ');
 }
 function clean(s=''){ return String(s).replace(/\s+/g,' ').trim(); }
 
@@ -456,9 +485,12 @@ function fallbackPayload(error){
     cacheTtlMinutes: Math.round(CACHE_TTL_MS / 60000),
     news: [],
     newsCount: 0,
+    newsOk: false,
     warnings: [],
     warningCount: 0,
+    warningsOk: false,
     earthquakes: [],
+    quakesOk: false,
     sourceReport: [{ name:'All sources', ok:false, error }]
   };
 }
