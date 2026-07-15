@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import {
   dedupeByTitleStem,
   titleStem,
+  isSourceOk,
   extractActiveWarningNames,
   parseRss,
   clean,
@@ -348,4 +349,39 @@ test('titleStem is stable regardless of case and punctuation noise', () => {
   const a = titleStem('Tokyo Marathon 2026!!');
   const b = titleStem('tokyo marathon 2026');
   assert.equal(a, b);
+});
+
+// Regression tests for isSourceOk: the exact spot where a real bug happened
+// (the regional news section briefly reused a blanket "did ANY of the 3
+// news sources succeed" flag instead of checking its own source).
+
+test('isSourceOk returns true when the named source succeeded', () => {
+  const report = [
+    { name: 'NHK', ok: true },
+    { name: 'Google News (Japan)', ok: true },
+    { name: 'Google News (地域)', ok: true }
+  ];
+  assert.equal(isSourceOk('fulfilled', report, 'Google News (地域)'), true);
+});
+
+test('isSourceOk returns false when the named source failed even though other sources in the same batch succeeded', () => {
+  const report = [
+    { name: 'NHK', ok: true },
+    { name: 'Google News (Japan)', ok: true },
+    { name: 'Google News (地域)', ok: false, error: 'timeout' }
+  ];
+  assert.equal(isSourceOk('fulfilled', report, 'Google News (地域)'), false, 'a specific source failing must not be masked by other sources succeeding');
+});
+
+test('isSourceOk returns false when the whole settled batch rejected, even if the fallback report happens to lack this source name', () => {
+  // This mirrors buildPayload's real fallback shape: when fetchAllNews()
+  // itself throws, newsReport becomes a single generic placeholder entry
+  // that doesn't mention any specific source by name.
+  const fallbackReport = [{ name: 'News', ok: false, error: 'crash' }];
+  assert.equal(isSourceOk('rejected', fallbackReport, 'Google News (地域)'), false);
+});
+
+test('isSourceOk defaults to true if the batch succeeded but this exact source name is missing from the report (defensive default)', () => {
+  const report = [{ name: 'NHK', ok: true }];
+  assert.equal(isSourceOk('fulfilled', report, 'Some Source That Does Not Exist'), true);
 });
