@@ -247,7 +247,35 @@ function parseRss(xml, fallbackSource='RSS'){
     const source = decodeXml(block.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1] || fallbackSource);
     const pub = decodeXml(block.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] || '');
     return { title, url, source: clean(source) || fallbackSource, published: pub };
-  }).filter(a => a.title && a.url && !isGarbageTitle(a.title));
+  }).filter(a => a.title && a.url && !isGarbageTitle(a.title) && !isForeignOnlyStory(a.title));
+}
+
+// FIX: this dashboard is specifically "what's happening in JAPAN", but the
+// political/disaster keyword list (国会, 選挙, 事故, 政府, 事件, etc.) only checks
+// whether a word appears — not whether the story is actually about Japan.
+// Real observed false positives: a Russian dissident's election campaign
+// matched "選挙"; a Ryanair incident in Europe matched "事故"; a Trump-Israel-
+// Syria-Lebanon diplomatic story matched multiple keywords at once. None of
+// these have anything to do with Japan.
+//
+// This is a scoped, imperfect heuristic — like SATIRE_INDICATOR-style lists
+// used elsewhere in this project's sibling (ORACLE) — not a real
+// understanding of "is this about Japan". If a headline contains a term
+// strongly associated with a specific foreign country/conflict AND does NOT
+// also mention Japan in some form, it's filtered out. This will not catch
+// every foreign story (a story that manages to avoid all of these terms
+// slips through), and in rare cases could exclude a genuinely Japan-relevant
+// story that discusses a foreign country without using any of the
+// JAPAN_RELEVANCE_TERMS below — an accepted, documented tradeoff rather
+// than a hidden one.
+const FOREIGN_ONLY_INDICATOR_TERMS = ['ロシア','ウクライナ','イスラエル','ガザ','シリア','レバノン','ライアンエアー'];
+const JAPAN_RELEVANCE_TERMS = ['日本','日系','邦人','在日','対日','日米','日露','日中','日韓','日ロ'];
+function isForeignOnlyStory(title){
+  const t = String(title || '');
+  const hasForeignSignal = FOREIGN_ONLY_INDICATOR_TERMS.some(term => t.includes(term));
+  if(!hasForeignSignal) return false;
+  const hasJapanRelevance = JAPAN_RELEVANCE_TERMS.some(term => t.includes(term));
+  return !hasJapanRelevance;
 }
 
 // FIX: some smaller/less-standardized sites feed Google News malformed or
@@ -541,4 +569,4 @@ function fallbackPayload(error){
 
 // Named exports for unit testing pure logic (does not affect the default
 // export Vercel invokes — same pattern used in ORACLE's api/risk.js).
-export { dedupeByTitleStem, titleStem, extractActiveWarningNames, parseRss, clean, decodeXml, groupWarningsByPrefecture, prioritizeEarthquakeEntries, isRoutineBulletin };
+export { dedupeByTitleStem, titleStem, extractActiveWarningNames, parseRss, clean, decodeXml, groupWarningsByPrefecture, prioritizeEarthquakeEntries, isRoutineBulletin, isForeignOnlyStory };
