@@ -190,26 +190,16 @@ async function fetchGoogleNewsJP(){
 function parseRss(xml, fallbackSource='RSS'){
   const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].map(m=>m[1]);
   return items.map(block=>{
-    // FIX: this only stripped a trailing " - Outlet Name" suffix. TBS NEWS
-    // DIG (and likely other outlets) instead suffix with a pipe, e.g.
-    // "...【気象庁15日発表】 | TBS NEWS DIG (1ページ)", which passed straight
-    // through unstripped and produced an unusually long, awkward headline in
-    // the news list. Now strips both separator styles, and hard-caps the
-    // result length as a safety net for any outlet using a format neither
-    // pattern catches.
-    // FIX: same class of issue as the earlier "| TBS NEWS DIG" case, but a
-    // different separator style. Japanese TV news headlines commonly end
-    // with a trailing network-affiliation credit in parentheses, e.g.
-    // "(NNN)" for Nippon News Network (日本テレビ系), or similarly
-    // JNN/FNN/ANN/TXN for the other keiretsu — a short, all-caps code, not
-    // meaningful headline content. Stripped only when it's 2-6 uppercase
-    // Latin letters in trailing (half- or full-width) parentheses, so
-    // genuine Japanese parenthetical content (which won't match this
-    // pattern) is left alone.
+    // FIX: outlet-name suffixes on the end of a headline have shown up in
+    // three different forms so far, each fixed as discovered — a hyphen or
+    // (ASCII/fullwidth) pipe separator ("- Outlet" / "| Outlet" / "｜ Outlet"),
+    // and a trailing parenthetical containing a broadcaster network code
+    // (bare "(NNN)" or mixed with the outlet name like "（日テレNEWS NNN）").
+    // Other separator styles may still exist that aren't covered here.
     const rawTitle = decodeXml((block.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/)?.[1] || block.match(/<title>([\s\S]*?)<\/title>/)?.[1] || ''));
     const title = clean(rawTitle
-      .replace(/\s+[-|]\s+[^-|]+$/,'')
-      .replace(/[(（]\s*[A-Z]{2,6}\s*[)）]\s*$/,'')
+      .replace(/\s+[-|｜]\s+[^-|｜]+$/,'')
+      .replace(/[(（][^()（）]{0,20}(NNN|JNN|FNN|ANN|TXN)[^()（）]{0,20}[)）]\s*$/,'')
     ).slice(0, 120);
     const url = decodeXml(block.match(/<link>([\s\S]*?)<\/link>/)?.[1] || '');
     const source = decodeXml(block.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1] || fallbackSource);
