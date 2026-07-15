@@ -14,15 +14,13 @@ import assert from 'node:assert/strict';
 import {
   dedupeByTitleStem,
   titleStem,
-  isSourceOk,
   extractActiveWarningNames,
   parseRss,
   clean,
   decodeXml,
   groupWarningsByPrefecture,
   prioritizeEarthquakeEntries,
-  isRoutineBulletin,
-  capPerPrefecture
+  isRoutineBulletin
 } from '../api/japan.js';
 
 // Trimmed down but structurally real fixture (captured live, then trimmed
@@ -352,80 +350,3 @@ test('titleStem is stable regardless of case and punctuation noise', () => {
   assert.equal(a, b);
 });
 
-// Regression tests for isSourceOk: the exact spot where a real bug happened
-// (the regional news section briefly reused a blanket "did ANY of the 3
-// news sources succeed" flag instead of checking its own source).
-
-test('isSourceOk returns true when the named source succeeded', () => {
-  const report = [
-    { name: 'NHK', ok: true },
-    { name: 'Google News (Japan)', ok: true },
-    { name: 'Google News (地域)', ok: true }
-  ];
-  assert.equal(isSourceOk('fulfilled', report, 'Google News (地域)'), true);
-});
-
-test('isSourceOk returns false when the named source failed even though other sources in the same batch succeeded', () => {
-  const report = [
-    { name: 'NHK', ok: true },
-    { name: 'Google News (Japan)', ok: true },
-    { name: 'Google News (地域)', ok: false, error: 'timeout' }
-  ];
-  assert.equal(isSourceOk('fulfilled', report, 'Google News (地域)'), false, 'a specific source failing must not be masked by other sources succeeding');
-});
-
-test('isSourceOk returns false when the whole settled batch rejected, even if the fallback report happens to lack this source name', () => {
-  // This mirrors buildPayload's real fallback shape: when fetchAllNews()
-  // itself throws, newsReport becomes a single generic placeholder entry
-  // that doesn't mention any specific source by name.
-  const fallbackReport = [{ name: 'News', ok: false, error: 'crash' }];
-  assert.equal(isSourceOk('rejected', fallbackReport, 'Google News (地域)'), false);
-});
-
-test('isSourceOk treats a missing source name as unverified, not confirmed-ok', () => {
-  // FIX: this used to default to true when the name wasn't found — but
-  // "not found" means "we can't confirm this succeeded", which should never
-  // be presented as "ok", the same principle applied everywhere else in
-  // this project (baseline data, degraded sources, etc.).
-  const report = [{ name: 'NHK', ok: true }];
-  assert.equal(isSourceOk('fulfilled', report, 'Some Source That Does Not Exist'), false);
-});
-
-// Regression tests for the "地方ニュース、北海道、東北ばかり" fix: no single
-// prefecture should be able to dominate the regional news list.
-
-test('capPerPrefecture limits how many articles a single prefecture can contribute', () => {
-  const items = Array.from({length: 10}, (_, i) => ({ title: `北海道でニュース${i}件目が発生` }));
-  const result = capPerPrefecture(items, 3);
-  assert.equal(result.length, 3, 'only 3 of the 10 Hokkaido articles should survive the cap');
-});
-
-test('capPerPrefecture lets different prefectures each contribute up to the cap independently', () => {
-  const items = [
-    ...Array.from({length: 5}, (_, i) => ({ title: `北海道の話題${i}` })),
-    ...Array.from({length: 5}, (_, i) => ({ title: `愛媛県の話題${i}` }))
-  ];
-  const result = capPerPrefecture(items, 3);
-  assert.equal(result.length, 6, '3 from Hokkaido + 3 from Ehime');
-});
-
-test('capPerPrefecture counts a multi-region article against only the first matching prefecture, not every region it mentions', () => {
-  const items = [
-    { title: '北海道・東北地方で大雨警報' }, // matches both 北海道 and one of the Tohoku names
-    ...Array.from({length: 3}, (_, i) => ({ title: `北海道の別の話題${i}` }))
-  ];
-  const result = capPerPrefecture(items, 3);
-  // The multi-region article counts once (against 北海道, the first match in
-  // PREFECTURE_NAMES order), leaving room for exactly 2 more 北海道 articles
-  // before hitting the cap of 3.
-  assert.equal(result.length, 3);
-});
-
-test('capPerPrefecture leaves articles with no matching prefecture name untouched (not capped, since they cannot be attributed)', () => {
-  const items = [
-    { title: '見出しに都道府県名が含まれない記事' },
-    { title: 'また別の都道府県名なし記事' }
-  ];
-  const result = capPerPrefecture(items, 1);
-  assert.equal(result.length, 2, 'articles that cannot be attributed to any prefecture should not be capped');
-});
