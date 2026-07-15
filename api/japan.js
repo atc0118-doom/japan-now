@@ -252,6 +252,19 @@ function parseRss(xml, fallbackSource='RSS'){
       // name.
       .replace(/\s+[-|｜]\s+[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)+$/,'')
       .replace(/\s+[-|｜]\s+[^-|｜]+$/,'')
+      // FIX: both patterns above require whitespace on BOTH sides of the
+      // separator. That broke when an outlet omitted the space on one or
+      // both sides of a pipe (e.g. "...掲載）|日テレNEWS NNN" or
+      // "...掲載） |日テレNEWS NNN") — confirmed by observing the exact same
+      // underlying story appear twice in the feed, once correctly stripped
+      // and once not. Pipes (ASCII "|" or fullwidth "｜") essentially never
+      // appear in ordinary Japanese sentence content the way a hyphen might
+      // (e.g. inside "J-POP" or a compound term), so it's safe to strip a
+      // trailing pipe-separated suffix regardless of surrounding whitespace
+      // — unlike the hyphen case above, which still requires whitespace on
+      // both sides to avoid mistaking a real mid-sentence hyphen for a
+      // separator.
+      .replace(/\s*[|｜]\s*[^-|｜]+$/,'')
       .replace(/[(（][^()（）]{0,20}(NNN|JNN|FNN|ANN|TXN)[^()（）]{0,20}[)）]\s*$/,'')
     ).slice(0, 120);
     const url = decodeXml(block.match(/<link>([\s\S]*?)<\/link>/)?.[1] || '');
