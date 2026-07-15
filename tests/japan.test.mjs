@@ -298,3 +298,27 @@ test('prioritizeEarthquakeEntries keeps all urgent entries even if there are man
   assert.ok(result.some(e => e.title === urgentEntry.title), 'the single urgent entry must not be crowded out by 15 routine bulletins');
   assert.equal(result[0].title, urgentEntry.title, 'urgent entries come first');
 });
+
+test('parseRss strips a domain-name suffix even when the domain itself contains a hyphen', () => {
+  // Regression: "fukuoka-u.ac.jp" has a hyphen in "fukuoka-u", which broke
+  // the general suffix stripper (it requires zero hyphens in the trailing
+  // content). A domain-shaped suffix should still be stripped regardless.
+  const xml = `<item><title>豪雨や災害の実態と備え「耐震」と「免震」は違うもの - fukuoka-u.ac.jp</title><link>https://example.com/9</link></item>`;
+  const items = parseRss(xml, 'Test');
+  assert.equal(items[0].title, '豪雨や災害の実態と備え「耐震」と「免震」は違うもの');
+});
+
+test('parseRss filters out a title ending in a leaked "og_description" placeholder', () => {
+  // Regression: real observed case was "レバンガ北海道 og_description" — a
+  // legitimate-looking prefix with a literal Open Graph meta-tag name
+  // appended, not a real headline.
+  const xml = `<item><title>レバンガ北海道 og_description</title><link>https://example.com/10</link></item>`;
+  const items = parseRss(xml, 'Test');
+  assert.equal(items.length, 0, 'a title ending in a known placeholder token should be filtered out entirely');
+});
+
+test('parseRss does not filter out a normal headline that merely contains similar-looking words', () => {
+  const xml = `<item><title>本当に良い普通の見出しです</title><link>https://example.com/11</link></item>`;
+  const items = parseRss(xml, 'Test');
+  assert.equal(items.length, 1);
+});
