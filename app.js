@@ -35,7 +35,6 @@ function fallbackView(error){
   return {
     ok:true, mode:'fallback', dataStatus:'FALLBACK — 取得失敗', sourceError:error,
     updatedAt:new Date().toISOString(), news:[], newsOk:false,
-    regionalNews:[], regionalNewsOk:false,
     warnings:[], warningCount:0, warningsOk:false, earthquakes:[], quakesOk:false
   };
 }
@@ -46,17 +45,14 @@ function render(data){
   statusEl.className = 'status-badge ' + (data.mode === 'live' ? 'status-live' : 'status-degraded');
   $('updatedAt').textContent = data.updatedAt ? `更新: ${new Date(data.updatedAt).toLocaleTimeString('ja-JP')}` : '';
 
-  // FIX: news/regionalNews/earthquakes are all capped before being sent
-  // (30/20/10 respectively — see api/japan.js), but the count shown next to
-  // each heading used to prefer the backend's PRE-cap total (e.g.
-  // newsCount). That meant "地方の話題 89件" could show while only 20 items
-  // were actually visible on screen — a real mismatch, not just a rounding
-  // quirk, and it reads like missing content rather than a deliberate cap.
-  // Now the count always reflects what's actually rendered: the array's own
-  // length. Warnings is unaffected — that list is never capped, so its
-  // count already matched what's shown.
+  // FIX: news/earthquakes are capped before being sent (30/10 respectively
+  // — see api/japan.js), but the count shown next to each heading used to
+  // prefer the backend's PRE-cap total. That could show e.g. "113件" while
+  // fewer items were actually visible on screen — a real mismatch, not
+  // just a rounding quirk. Now the count always reflects what's actually
+  // rendered: the array's own length. Warnings is unaffected — that list
+  // is never capped, so its count already matched what's shown.
   renderNews(data.news || [], (data.news || []).length, data.newsOk !== false);
-  renderRegionalNews(data.regionalNews || [], (data.regionalNews || []).length, data.regionalNewsOk !== false);
   renderWarnings(data.warnings || [], data.warningCount ?? (data.warnings||[]).length, data.warningsOk !== false);
   renderQuakes(data.earthquakes || [], data.quakesOk !== false);
 
@@ -72,8 +68,7 @@ function render(data){
 // on how long that row's source name happened to be — titles never lined
 // up. Source name + time now sit together on a small line above the title,
 // so every title starts at the same left edge regardless of source name
-// length. Shared by both renderNews and renderRegionalNews (previously this
-// template was duplicated identically in both).
+// length.
 function newsItemHtml(n){
   return `
     <a class="news-item" href="${escapeHtml(n.url)}" target="_blank" rel="noopener">
@@ -93,24 +88,6 @@ function renderNews(news, count, ok){
     el.innerHTML = ok
       ? '<p class="empty">現在、該当するニュースはありません。</p>'
       : '<p class="empty error">ニュースの取得に失敗しました。しばらくしてから再度お試しください。</p>';
-    return;
-  }
-  el.innerHTML = news.map(newsItemHtml).join('');
-}
-
-// FIX: regional news used to be merged into the main NEWS list, sorted
-// purely by publish time. National/political news updates far more
-// frequently, so regional stories were successfully fetched but routinely
-// pushed out of the display slice before ever being visible. This is its
-// own section now, so it isn't competing with national update frequency
-// for screen space.
-function renderRegionalNews(news, count, ok){
-  $('regionalNewsCount').textContent = `${count} 件`;
-  const el = $('regionalNewsList');
-  if(!news.length){
-    el.innerHTML = ok
-      ? '<p class="empty">現在、該当する地方の話題はありません。</p>'
-      : '<p class="empty error">地方ニュースの取得に失敗しました。しばらくしてから再度お試しください。</p>';
     return;
   }
   el.innerHTML = news.map(newsItemHtml).join('');
