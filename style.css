@@ -99,6 +99,11 @@ main{max-width:640px;margin:0 auto;padding:20px 16px 60px}
 }
 .quake-item:last-child{border-bottom:none}
 .quake-title{font-size:14px;font-weight:600}
+.routine-tag{
+  font-style:normal;font-size:10px;font-weight:700;color:var(--muted);
+  background:rgba(139,139,147,.15);border-radius:4px;padding:1px 5px;
+  vertical-align:middle;
+}
 .quake-summary{font-size:12px;color:var(--muted);line-height:1.5}
 .quake-time{font-size:11px;color:var(--muted)}
 

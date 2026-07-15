@@ -92,7 +92,7 @@ function renderQuakes(quakes){
   }
   el.innerHTML = quakes.map(q => `
     <a class="quake-item" href="${escapeHtml(q.url || 'https://www.jma.go.jp/')}" target="_blank" rel="noopener">
-      <span class="quake-title">${escapeHtml(q.title)}</span>
+      <span class="quake-title">${q.isRoutine ? '<em class="routine-tag">定時</em> ' : ''}${escapeHtml(q.title)}</span>
       ${q.summary ? `<span class="quake-summary">${escapeHtml(q.summary)}</span>` : ''}
       <span class="quake-time">${escapeHtml(timeAgo(q.updated))}</span>
     </a>
