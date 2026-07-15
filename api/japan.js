@@ -160,6 +160,18 @@ async function buildPayload(){
   // point is showing active warnings. These per-category flags close that
   // gap; each section can now tell the two situations apart independently.
   const newsOk = newsReport.some(r => r.ok);
+  // FIX: renderRegionalNews was reusing `newsOk` (true if ANY of the 3 news
+  // collectors — NHK, national Google News, regional Google News —
+  // succeeded). That meant if the regional query specifically broke while
+  // NHK/national kept working, the regional section would still say
+  // "現在、該当する地方の話題はありません" (a calm "nothing found" message)
+  // instead of reporting a real fetch failure — exactly the same
+  // "empty vs failed" conflation already fixed for warnings/quakes, just
+  // reintroduced here for the newest section. This checks the regional
+  // collector's own report entry specifically.
+  const regionalNewsOk = newsResult.status === 'fulfilled'
+    ? newsReport.find(r => r.name === 'Google News (地域)')?.ok !== false
+    : false;
   const warningsOk = !warningsError;
   const quakesOk = !quakesError;
 
@@ -182,6 +194,7 @@ async function buildPayload(){
     news: news.slice(0, 30),
     newsOk,
     regionalNews: regionalNews.slice(0, 20),
+    regionalNewsOk,
     warnings, // only prefectures with an ACTIVE warning/advisory right now — see fetchAllWarnings
     warningCount: warnings.length, // never capped — every matching prefecture is shown, so this always matches what's visible
     warningsOk,
@@ -583,6 +596,7 @@ function fallbackPayload(error){
     news: [],
     newsOk: false,
     regionalNews: [],
+    regionalNewsOk: false,
     warnings: [],
     warningCount: 0,
     warningsOk: false,
