@@ -170,23 +170,22 @@ async function buildPayload(){
     sourceError: failedSources.length ? failedSources.join(' · ') : null,
     updatedAt: new Date().toISOString(),
     cacheTtlMinutes: Math.round(CACHE_TTL_MS / 60000),
+    // FIX: this used to also send newsCount/regionalNewsCount/quakeCount as
+    // separate pre-cap totals, and the frontend originally preferred those
+    // over the rendered array's own length — meaning the header could show
+    // e.g. "地方の話題 89件" while only 20 items were ever visible on screen.
+    // The frontend now always derives its displayed count directly from the
+    // array it renders, so there's only one number that can ever reach the
+    // screen. These fields are dropped rather than kept-but-unused, since an
+    // unused pre-cap total sitting in the payload is exactly the kind of
+    // latent footgun that caused this mismatch to begin with.
     news: news.slice(0, 30),
-    newsCount: news.length,
     newsOk,
     regionalNews: regionalNews.slice(0, 20),
-    regionalNewsCount: regionalNews.length,
     warnings, // only prefectures with an ACTIVE warning/advisory right now — see fetchAllWarnings
-    warningCount: warnings.length,
+    warningCount: warnings.length, // never capped — every matching prefecture is shown, so this always matches what's visible
     warningsOk,
     earthquakes: quakes.slice(0, 10),
-    // FIX: this used to count ALL entries (urgent + routine bulletins), so
-    // a quiet day with 8 volcanoes under routine "定時" ashfall watch and
-    // just 1 real earthquake report would show "9 件" — giving the opposite
-    // impression of the "urgent info first" fix applied earlier. The header
-    // count now reflects only genuine events (matching what "定時"-tagged
-    // items are NOT), since that's what a count next to "地震・火山情報" should
-    // mean — not "how many bulletins exist right now".
-    quakeCount: quakes.filter(q => !q.isRoutine).length,
     quakesOk,
     sourceReport: [
       ...newsReport,
@@ -582,15 +581,12 @@ function fallbackPayload(error){
     updatedAt: new Date().toISOString(),
     cacheTtlMinutes: Math.round(CACHE_TTL_MS / 60000),
     news: [],
-    newsCount: 0,
     newsOk: false,
     regionalNews: [],
-    regionalNewsCount: 0,
     warnings: [],
     warningCount: 0,
     warningsOk: false,
     earthquakes: [],
-    quakeCount: 0,
     quakesOk: false,
     sourceReport: [{ name:'All sources', ok:false, error }]
   };
