@@ -381,7 +381,11 @@ test('isSourceOk returns false when the whole settled batch rejected, even if th
   assert.equal(isSourceOk('rejected', fallbackReport, 'Google News (地域)'), false);
 });
 
-test('isSourceOk defaults to true if the batch succeeded but this exact source name is missing from the report (defensive default)', () => {
+test('isSourceOk treats a missing source name as unverified, not confirmed-ok', () => {
+  // FIX: this used to default to true when the name wasn't found — but
+  // "not found" means "we can't confirm this succeeded", which should never
+  // be presented as "ok", the same principle applied everywhere else in
+  // this project (baseline data, degraded sources, etc.).
   const report = [{ name: 'NHK', ok: true }];
-  assert.equal(isSourceOk('fulfilled', report, 'Some Source That Does Not Exist'), true);
+  assert.equal(isSourceOk('fulfilled', report, 'Some Source That Does Not Exist'), false);
 });
