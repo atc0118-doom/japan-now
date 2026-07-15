@@ -35,7 +35,7 @@ function fallbackView(error){
   return {
     ok:true, mode:'fallback', dataStatus:'FALLBACK — 取得失敗', sourceError:error,
     updatedAt:new Date().toISOString(), news:[], newsCount:0, newsOk:false,
-    warnings:[], warningCount:0, warningsOk:false, earthquakes:[], quakesOk:false
+    warnings:[], warningCount:0, warningsOk:false, earthquakes:[], quakeCount:0, quakesOk:false
   };
 }
 
@@ -47,7 +47,7 @@ function render(data){
 
   renderNews(data.news || [], data.newsCount ?? (data.news||[]).length, data.newsOk !== false);
   renderWarnings(data.warnings || [], data.warningCount ?? (data.warnings||[]).length, data.warningsOk !== false);
-  renderQuakes(data.earthquakes || [], data.quakesOk !== false);
+  renderQuakes(data.earthquakes || [], data.quakeCount ?? (data.earthquakes||[]).length, data.quakesOk !== false);
 
   if(data.sourceError){
     console.warn('Japan Now source issues:', data.sourceError);
@@ -73,7 +73,12 @@ function renderNews(news, count, ok){
 }
 
 function renderWarnings(warnings, count, ok){
-  $('warningCount').textContent = `${count} 件`;
+  // FIX: this used to say "N 件", which reads like "N warnings" — but N is
+  // actually a count of PREFECTURES with at least one active warning, not
+  // the total number of warning types (Tokyo alone can show 4 different
+  // warning types under a single count). "都道府県" makes the count's
+  // actual meaning clear without needing to read the paragraph below it.
+  $('warningCount').textContent = `${count} 都道府県`;
   const el = $('warningList');
   if(!warnings.length){
     // FIX: previously this always showed "no active warnings" whenever the
@@ -95,7 +100,8 @@ function renderWarnings(warnings, count, ok){
   `).join('');
 }
 
-function renderQuakes(quakes, ok){
+function renderQuakes(quakes, count, ok){
+  $('quakeCount').textContent = `${count} 件`;
   const el = $('quakeList');
   if(!quakes.length){
     el.innerHTML = ok
