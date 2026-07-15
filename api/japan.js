@@ -53,26 +53,6 @@ const NHK_RSS_URL = 'https://news.web.nhk/n-data/conf/na/rss/cat0.xml';
 const GOOGLE_NEWS_JP_QUERY = encodeURIComponent('(国会 OR 内閣 OR 首相 OR 与党 OR 野党 OR 政府 OR 経済対策 OR 日銀 OR 選挙 OR 災害 OR 地震 OR 台風 OR 大雨 OR 事件 OR 事故 OR 感染症 OR 皇室)');
 const GOOGLE_NEWS_JP_URL = `https://news.google.com/rss/search?q=${GOOGLE_NEWS_JP_QUERY}&hl=ja&gl=JP&ceid=JP:ja`;
 
-// FIX: the query above is purely national-politics/government-focused, so
-// genuinely local stories (a town's festival, a prefectural assembly
-// decision, a regional business story) never matched it — the news list was
-// effectively "national news, reported redundantly by many different local
-// affiliates" rather than actual regional news. NHK does have a real local
-// news section ("地域ニュース"), but it sits behind a "ご利用意向の確認"
-// (usage-agreement) gate on their NHK ONE platform — a meaningfully
-// different signal than the plain RSS feed used elsewhere here, so it's
-// deliberately not scraped. This is the safer alternative: a SEPARATE
-// Google News query using all 47 prefecture names, kept as its own request
-// (rather than merged into the query above) so the URL doesn't balloon past
-// a reasonable length with 60+ OR terms in one query.
-// Extracted as its own array (not just embedded in the query string below)
-// so the same list can be reused to tag each fetched article by which
-// prefecture(s) it matches — needed for the per-prefecture cap in
-// capPerPrefecture, see fetchGoogleNewsJPRegional.
-const PREFECTURE_NAMES = ['北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県','茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','富山県','石川県','福井県','山梨県','長野県','岐阜県','静岡県','愛知県','三重県','滋賀県','京都府','大阪府','兵庫県','奈良県','和歌山県','鳥取県','島根県','岡山県','広島県','山口県','徳島県','香川県','愛媛県','高知県','福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県'];
-const GOOGLE_NEWS_JP_REGIONAL_QUERY = encodeURIComponent(`(${PREFECTURE_NAMES.join(' OR ')})`);
-const GOOGLE_NEWS_JP_REGIONAL_URL = `https://news.google.com/rss/search?q=${GOOGLE_NEWS_JP_REGIONAL_QUERY}&hl=ja&gl=JP&ceid=JP:ja`;
-
 const JMA_AREA_JSON_URL = 'https://www.jma.go.jp/bosai/common/const/area.json';
 const JMA_WARNING_BASE = 'https://www.jma.go.jp/bosai/warning/data/warning/';
 const JMA_EQVOL_FEED_URL = 'https://www.data.jma.go.jp/developer/xml/feed/eqvol.xml';
@@ -129,7 +109,6 @@ async function buildPayload(){
   ]);
 
   const news = newsResult.status === 'fulfilled' ? newsResult.value.items : [];
-  const regionalNews = newsResult.status === 'fulfilled' ? newsResult.value.regionalItems : [];
   const newsReport = newsResult.status === 'fulfilled' ? newsResult.value.report : [{ name:'News', ok:false, error: newsResult.reason?.message || 'error' }];
 
   const warnings = warningsResult.status === 'fulfilled' ? warningsResult.value.items : [];
@@ -144,7 +123,7 @@ async function buildPayload(){
     ...(quakesError ? [`JMA earthquakes ${quakesError}`] : [])
   ];
 
-  const anyLiveNews = news.length > 0 || regionalNews.length > 0;
+  const anyLiveNews = news.length > 0;
   const anyLiveDisaster = warnings.length > 0 || quakes.length > 0 || (warningsResult.status === 'fulfilled' && !warningsError);
   // FIX (honesty, same principle as ORACLE): if literally nothing came back
   // from any source, say so plainly rather than showing an empty dashboard
@@ -165,19 +144,6 @@ async function buildPayload(){
   // point is showing active warnings. These per-category flags close that
   // gap; each section can now tell the two situations apart independently.
   const newsOk = newsReport.some(r => r.ok);
-  // FIX: renderRegionalNews was reusing `newsOk` (true if ANY of the 3 news
-  // collectors — NHK, national Google News, regional Google News —
-  // succeeded). That meant if the regional query specifically broke while
-  // NHK/national kept working, the regional section would still say
-  // "現在、該当する地方の話題はありません" (a calm "nothing found" message)
-  // instead of reporting a real fetch failure — exactly the same
-  // "empty vs failed" conflation already fixed for warnings/quakes, just
-  // reintroduced here for the newest section. Pulled out into its own
-  // function (isSourceOk, below) so this specific check is unit-tested
-  // rather than left as untested inline logic in buildPayload — the same
-  // treatment already given to isRoutineBulletin/groupWarningsByPrefecture/
-  // prioritizeEarthquakeEntries after each of THEM caused a real bug.
-  const regionalNewsOk = isSourceOk(newsResult.status, newsReport, 'Google News (地域)');
   const warningsOk = !warningsError;
   const quakesOk = !quakesError;
 
@@ -188,19 +154,8 @@ async function buildPayload(){
     sourceError: failedSources.length ? failedSources.join(' · ') : null,
     updatedAt: new Date().toISOString(),
     cacheTtlMinutes: Math.round(CACHE_TTL_MS / 60000),
-    // FIX: this used to also send newsCount/regionalNewsCount/quakeCount as
-    // separate pre-cap totals, and the frontend originally preferred those
-    // over the rendered array's own length — meaning the header could show
-    // e.g. "地方の話題 89件" while only 20 items were ever visible on screen.
-    // The frontend now always derives its displayed count directly from the
-    // array it renders, so there's only one number that can ever reach the
-    // screen. These fields are dropped rather than kept-but-unused, since an
-    // unused pre-cap total sitting in the payload is exactly the kind of
-    // latent footgun that caused this mismatch to begin with.
     news: news.slice(0, 30),
     newsOk,
-    regionalNews: regionalNews.slice(0, 20),
-    regionalNewsOk,
     warnings, // only prefectures with an ACTIVE warning/advisory right now — see fetchAllWarnings
     warningCount: warnings.length, // never capped — every matching prefecture is shown, so this always matches what's visible
     warningsOk,
@@ -216,19 +171,10 @@ async function buildPayload(){
 
 // ---- News ----
 
-// FIX: national and regional news used to be merged into one time-sorted
-// list before display. National/political news updates far more frequently
-// than the regional query does, so even though the regional query was
-// successfully fetching local stories, they'd get pushed out of the top-30
-// display slice before ever being seen — "fetched but buried", not actually
-// visible. Splitting them into two separate lists/sections means regional
-// stories are no longer competing with national update frequency for
-// display slots.
 async function fetchAllNews(){
   const collectors = [
     ['NHK', fetchNHKNews],
-    ['Google News (Japan)', fetchGoogleNewsJP],
-    ['Google News (地域)', fetchGoogleNewsJPRegional]
+    ['Google News (Japan)', fetchGoogleNewsJP]
   ];
   const settled = await Promise.allSettled(collectors.map(async ([name, fn])=>{
     const items = await fn();
@@ -239,51 +185,10 @@ async function fetchAllNews(){
     if(r.status === 'fulfilled') return { name, ok:true, count:r.value.count };
     return { name, ok:false, count:0, error: r.reason?.message || 'error' };
   });
-
-  const nationalRaw = [];
-  for(const r of settled.slice(0, 2)){ if(r.status === 'fulfilled') nationalRaw.push(...r.value.items); }
-  const national = dedupeByTitleStem(nationalRaw).sort((a,b)=> new Date(b.published||0) - new Date(a.published||0));
-
-  const regionalRaw = settled[2]?.status === 'fulfilled' ? settled[2].value.items : [];
-  // Cross-dedupe: don't show the exact same story in both the national and
-  // regional cards just because it happened to match both queries.
-  const nationalStems = new Set(national.map(a => titleStem(a.title)));
-  const regionalSorted = dedupeByTitleStem(regionalRaw)
-    .filter(a => !nationalStems.has(titleStem(a.title)))
-    .sort((a,b)=> new Date(b.published||0) - new Date(a.published||0));
-  // FIX: multi-region stories (e.g. "北海道・東北で大雨" mentioning several OR
-  // terms in one headline) match the query with higher density than a
-  // typical single-prefecture local story, so they tend to rank higher in
-  // Google's own relevance ordering — in practice this meant the regional
-  // section skewed heavily toward whichever region had an active multi-day
-  // weather story, reading as "mostly Hokkaido/Tohoku" instead of
-  // nationwide. Capping how many articles any single prefecture can
-  // contribute (after sorting by recency) guarantees geographic spread
-  // regardless of which region's stories happen to rank highest that cycle.
-  const regional = capPerPrefecture(regionalSorted, 3);
-
-  return { items: national, regionalItems: regional, report };
-}
-
-// Pulled out as its own function so it can be unit-tested without a network
-// call — see tests/japan.test.mjs. Input is expected to already be sorted
-// (most recent first); this only enforces the per-prefecture cap, it
-// doesn't re-sort. An article can match multiple prefectures (e.g. a
-// multi-region weather story) — it still only counts once, against the
-// FIRST matching prefecture found, so it doesn't consume cap budget from
-// every region it happens to mention.
-function capPerPrefecture(items, maxPerPrefecture){
-  const countByPrefecture = new Map();
-  const out = [];
-  for(const item of items){
-    const matched = PREFECTURE_NAMES.find(pref => item.title.includes(pref));
-    if(!matched){ out.push(item); continue; } // no prefecture matched at all — don't cap what we can't attribute
-    const count = countByPrefecture.get(matched) || 0;
-    if(count >= maxPerPrefecture) continue;
-    countByPrefecture.set(matched, count + 1);
-    out.push(item);
-  }
-  return out;
+  let items = [];
+  for(const r of settled){ if(r.status === 'fulfilled') items.push(...r.value.items); }
+  items = dedupeByTitleStem(items).sort((a,b)=> new Date(b.published||0) - new Date(a.published||0));
+  return { items, report };
 }
 
 async function fetchNHKNews(){
@@ -296,13 +201,6 @@ async function fetchNHKNews(){
 async function fetchGoogleNewsJP(){
   const r = await fetchWithTimeout(GOOGLE_NEWS_JP_URL, { headers:{ 'user-agent':'JapanNow/1.0' } });
   if(!r.ok) throw new Error('google_news_jp ' + r.status);
-  const xml = await r.text();
-  return parseRss(xml, 'Google News');
-}
-
-async function fetchGoogleNewsJPRegional(){
-  const r = await fetchWithTimeout(GOOGLE_NEWS_JP_REGIONAL_URL, { headers:{ 'user-agent':'JapanNow/1.0' } });
-  if(!r.ok) throw new Error('google_news_jp_regional ' + r.status);
   const xml = await r.text();
   return parseRss(xml, 'Google News');
 }
@@ -395,34 +293,6 @@ function clean(s=''){ return String(s).replace(/\s+/g,' ').trim(); }
 // Pulled out as its own function so both dedupeByTitleStem (within one
 // list) and fetchAllNews (across the national/regional lists) can use the
 // same stemming logic.
-// FIX: extracted specifically because the inline version of this check
-// (newsReport.find(...)?.ok !== false) was the exact spot where a real bug
-// happened — the regional news section briefly reused a different,
-// blanket "did ANY of the 3 news sources succeed" flag instead of checking
-// its own source specifically. Pulling this into its own named,
-// unit-tested function makes it much harder for that mistake — reusing the
-// wrong flag, or getting the fallback-when-missing/rejected behavior wrong
-// — to happen again unnoticed. `settledStatus` is the Promise.allSettled
-// status ('fulfilled'/'rejected') of the whole batch this source's report
-// came from; if the whole batch rejected, every source in it is
-// unreachable, regardless of whether `report` (the fallback placeholder
-// array) happens to contain an entry with this name.
-//
-// FIX (self-consistency): this originally defaulted to `true` ("ok") when
-// `sourceName` wasn't found anywhere in `report` — but that's exactly the
-// same "claim confirmed-fine when actually unverified" failure mode this
-// whole project has been designed against elsewhere (baseline/degraded
-// handling, warnings-vs-failure, etc.). If a collector gets renamed and a
-// call site's name string falls out of sync, silently returning "ok" would
-// hide that mismatch instead of surfacing it. Not found now means
-// "unverified", which is treated as not-ok.
-function isSourceOk(settledStatus, report, sourceName){
-  if(settledStatus !== 'fulfilled') return false;
-  const entry = report.find(r => r.name === sourceName);
-  if(!entry) return false;
-  return entry.ok !== false;
-}
-
 function titleStem(title){
   return clean(title).toLowerCase().replace(/[^a-z0-9ぁ-んァ-ヶ一-龠]+/g,'').slice(0, 24);
 }
@@ -660,8 +530,6 @@ function fallbackPayload(error){
     cacheTtlMinutes: Math.round(CACHE_TTL_MS / 60000),
     news: [],
     newsOk: false,
-    regionalNews: [],
-    regionalNewsOk: false,
     warnings: [],
     warningCount: 0,
     warningsOk: false,
@@ -673,4 +541,4 @@ function fallbackPayload(error){
 
 // Named exports for unit testing pure logic (does not affect the default
 // export Vercel invokes — same pattern used in ORACLE's api/risk.js).
-export { dedupeByTitleStem, titleStem, isSourceOk, extractActiveWarningNames, parseRss, clean, decodeXml, groupWarningsByPrefecture, prioritizeEarthquakeEntries, isRoutineBulletin, capPerPrefecture };
+export { dedupeByTitleStem, titleStem, extractActiveWarningNames, parseRss, clean, decodeXml, groupWarningsByPrefecture, prioritizeEarthquakeEntries, isRoutineBulletin };
