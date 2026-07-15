@@ -56,6 +56,27 @@ function render(data){
   }
 }
 
+// FIX: source name and title used to sit side-by-side in a 3-column grid
+// (auto 1fr auto). Source names vary a lot in length ("NHK" vs
+// "時事ドットコム" vs "TBS NEWS DIG"), and since the source column sized to its
+// own content, the title's starting x-position shifted row to row depending
+// on how long that row's source name happened to be — titles never lined
+// up. Source name + time now sit together on a small line above the title,
+// so every title starts at the same left edge regardless of source name
+// length. Shared by both renderNews and renderRegionalNews (previously this
+// template was duplicated identically in both).
+function newsItemHtml(n){
+  return `
+    <a class="news-item" href="${escapeHtml(n.url)}" target="_blank" rel="noopener">
+      <div class="news-meta">
+        <span class="news-source">${escapeHtml(n.source)}</span>
+        <span class="news-time">${escapeHtml(timeAgo(n.published))}</span>
+      </div>
+      <span class="news-title">${escapeHtml(n.title)}</span>
+    </a>
+  `;
+}
+
 function renderNews(news, count, ok){
   $('newsCount').textContent = `${count} 件`;
   const el = $('newsList');
@@ -65,13 +86,7 @@ function renderNews(news, count, ok){
       : '<p class="empty error">ニュースの取得に失敗しました。しばらくしてから再度お試しください。</p>';
     return;
   }
-  el.innerHTML = news.map(n => `
-    <a class="news-item" href="${escapeHtml(n.url)}" target="_blank" rel="noopener">
-      <span class="news-source">${escapeHtml(n.source)}</span>
-      <span class="news-title">${escapeHtml(n.title)}</span>
-      <span class="news-time">${escapeHtml(timeAgo(n.published))}</span>
-    </a>
-  `).join('');
+  el.innerHTML = news.map(newsItemHtml).join('');
 }
 
 // FIX: regional news used to be merged into the main NEWS list, sorted
@@ -89,13 +104,7 @@ function renderRegionalNews(news, count, ok){
       : '<p class="empty error">地方ニュースの取得に失敗しました。しばらくしてから再度お試しください。</p>';
     return;
   }
-  el.innerHTML = news.map(n => `
-    <a class="news-item" href="${escapeHtml(n.url)}" target="_blank" rel="noopener">
-      <span class="news-source">${escapeHtml(n.source)}</span>
-      <span class="news-title">${escapeHtml(n.title)}</span>
-      <span class="news-time">${escapeHtml(timeAgo(n.published))}</span>
-    </a>
-  `).join('');
+  el.innerHTML = news.map(newsItemHtml).join('');
 }
 
 function renderWarnings(warnings, count, ok){
