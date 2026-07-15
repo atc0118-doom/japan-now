@@ -240,6 +240,17 @@ function parseRss(xml, fallbackSource='RSS'){
     // Other separator styles may still exist that aren't covered here.
     const rawTitle = decodeXml((block.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/)?.[1] || block.match(/<title>([\s\S]*?)<\/title>/)?.[1] || ''));
     const title = clean(rawTitle
+      // FIX: the general suffix-stripper below requires the trailing content
+      // to contain NO hyphens (`[^-|｜]+$`), which breaks when the outlet
+      // itself is a domain name containing a hyphen (e.g.
+      // "...備えー「耐震」と「免震」は違うもの - fukuoka-u.ac.jp" — "fukuoka-u.ac.jp"
+      // has a hyphen in "fukuoka-u", so the general pattern never matched
+      // and the domain suffix stayed attached). This runs first and
+      // specifically targets a trailing "- domain.tld" / "| domain.tld"
+      // shape regardless of hyphens inside the domain, since a real
+      // headline essentially never legitimately ends in a literal domain
+      // name.
+      .replace(/\s+[-|｜]\s+[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)+$/,'')
       .replace(/\s+[-|｜]\s+[^-|｜]+$/,'')
       .replace(/[(（][^()（）]{0,20}(NNN|JNN|FNN|ANN|TXN)[^()（）]{0,20}[)）]\s*$/,'')
     ).slice(0, 120);
@@ -247,7 +258,22 @@ function parseRss(xml, fallbackSource='RSS'){
     const source = decodeXml(block.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1] || fallbackSource);
     const pub = decodeXml(block.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] || '');
     return { title, url, source: clean(source) || fallbackSource, published: pub };
-  }).filter(a=>a.title && a.url);
+  }).filter(a => a.title && a.url && !isGarbageTitle(a.title));
+}
+
+// FIX: some smaller/less-standardized sites feed Google News malformed or
+// incomplete metadata, and a literal placeholder string like "og_description"
+// (an Open Graph meta-tag NAME, not real content) leaks into the title —
+// sometimes standing alone, sometimes appended after legitimate-looking text
+// (the actual reported case was "レバンガ北海道 og_description", not just the
+// bare token). Either way, if a title ends with one of these known
+// placeholder tokens, the whole thing is unreliable — there's no way to
+// confirm the preceding text was really a standalone headline versus a page
+// title that happened to include a team/organization name — so it's
+// filtered out entirely rather than trimmed and kept.
+const GARBAGE_TITLE_SUFFIX = /(^|\s)(og_description|og:description|undefined|null|no title|untitled)$/i;
+function isGarbageTitle(title){
+  return GARBAGE_TITLE_SUFFIX.test(String(title || '').trim());
 }
 
 function decodeXml(s=''){
