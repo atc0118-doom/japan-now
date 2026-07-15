@@ -78,6 +78,22 @@ test('decodeXml unescapes standard XML entities', () => {
   assert.equal(decodeXml('A &amp; B &lt;tag&gt; &quot;quoted&quot; &#39;it&#39;s&#39;'), `A & B <tag> "quoted" 'it's'`);
 });
 
+test('decodeXml unescapes &nbsp; and &#160; as real whitespace (regression)', () => {
+  // Confirmed root cause of a persistent "outlet name suffix never gets
+  // stripped" bug: some titles use a literal "&nbsp;" instead of a real
+  // space around the separator. Left undecoded, "&nbsp;" is 6 non-whitespace
+  // characters, so the title-cleanup regex's \s+ requirement never matched
+  // and nothing got stripped at all.
+  assert.equal(decodeXml('A&nbsp;B'), 'A B');
+  assert.equal(decodeXml('A&#160;B'), 'A B');
+});
+
+test('parseRss strips an outlet-name suffix even when separated by literal &nbsp; instead of a real space (regression)', () => {
+  const xml = `<item><title>皇室典範改正案 参院で審議 きょう午後採決で調整（2026年7月14日掲載）&nbsp;|&nbsp;日テレNEWS NNN</title><link>https://example.com/8</link></item>`;
+  const items = parseRss(xml, 'Test');
+  assert.equal(items[0].title, '皇室典範改正案 参院で審議 きょう午後採決で調整（2026年7月14日掲載）');
+});
+
 test('clean collapses whitespace and trims', () => {
   assert.equal(clean('  hello   world  \n\t'), 'hello world');
 });
