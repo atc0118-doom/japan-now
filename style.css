@@ -52,8 +52,18 @@ main{max-width:640px;margin:0 auto;padding:20px 16px 60px}
      lopsided. Sticky-positioning the right column keeps it in view instead
      of leaving dead space; it stays pinned near the top of the viewport
      until its own content (or the end of the news column) scrolls past it,
-     which is the standard "sidebar" pattern most desktop news sites use. */
-  .col-side{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto}
+     which is the standard "sidebar" pattern most desktop news sites use.
+     FIX: this originally also had max-height:calc(100vh - 40px) plus
+     overflow-y:auto, so a long warnings list (16+ prefectures) combined
+     with the earthquake card could exceed that height and turn .col-side
+     into its OWN internal scroll region. Under touch, a sticky element that
+     also scrolls internally reads as "still moving" even though it's
+     technically pinned — dragging over that area scrolls its own content
+     rather than feeling anchored. Dropping the internal scroll constraint
+     means .col-side is just a plain sticky block: it pins near the top and
+     rides along with whatever height its content naturally needs, with no
+     separate scroll interaction to fight against on touch. */
+  .col-side{position:sticky;top:20px}
 }
 
 .hero{padding:24px 4px 8px}
