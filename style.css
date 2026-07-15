@@ -35,6 +35,14 @@ main{max-width:640px;margin:0 auto;padding:20px 16px 60px}
   .dashboard-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:20px;align-items:start}
   .col-main,.col-side{display:flex;flex-direction:column;gap:20px}
   .card{margin-top:0}
+  /* FIX: News is naturally much longer than warnings+earthquakes combined,
+     so the right column was finishing early and leaving a large blank gap
+     below it while the page kept scrolling through news — visually
+     lopsided. Sticky-positioning the right column keeps it in view instead
+     of leaving dead space; it stays pinned near the top of the viewport
+     until its own content (or the end of the news column) scrolls past it,
+     which is the standard "sidebar" pattern most desktop news sites use. */
+  .col-side{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto}
 }
 
 .hero{padding:24px 4px 8px}
