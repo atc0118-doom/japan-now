@@ -38,7 +38,20 @@ const AREA_CODES_TTL_MS = 24 * 60 * 60 * 1000; // area codes barely ever change
 const FETCH_TIMEOUT_MS = 6500;
 
 const NHK_RSS_URL = 'https://news.web.nhk/n-data/conf/na/rss/cat0.xml';
-const GOOGLE_NEWS_JP_URL = 'https://news.google.com/rss?hl=ja&gl=JP&ceid=JP:ja';
+// FIX: this used to hit the generic Japan top-stories feed
+// (news.google.com/rss?hl=ja&gl=JP&ceid=JP:ja), which mixes in whatever
+// Google's algorithm considers "top" for the day — including tech/gadget
+// leaks (Pixel phones), gaming news, and generic world science stories that
+// have nothing to do with "what's happening in Japan" specifically. Google
+// News does have topic/section-specific RSS URLs (e.g. a "国内"/NATION
+// section), but that URL scheme couldn't be verified live from here, so
+// rather than guess at an unverified endpoint, this uses the same
+// query-based RSS mechanism ORACLE's own global version already relies on
+// successfully — narrowed to domestic politics/government/economy/society/
+// disaster keywords, which is what actually distinguishes "Japan news" from
+// "tech news that happens to be in Japanese".
+const GOOGLE_NEWS_JP_QUERY = encodeURIComponent('(国会 OR 内閣 OR 首相 OR 与党 OR 野党 OR 政府 OR 経済対策 OR 日銀 OR 選挙 OR 災害 OR 地震 OR 台風 OR 大雨 OR 事件 OR 事故 OR 感染症 OR 皇室)');
+const GOOGLE_NEWS_JP_URL = `https://news.google.com/rss/search?q=${GOOGLE_NEWS_JP_QUERY}&hl=ja&gl=JP&ceid=JP:ja`;
 const JMA_AREA_JSON_URL = 'https://www.jma.go.jp/bosai/common/const/area.json';
 const JMA_WARNING_BASE = 'https://www.jma.go.jp/bosai/warning/data/warning/';
 const JMA_EQVOL_FEED_URL = 'https://www.data.jma.go.jp/developer/xml/feed/eqvol.xml';
