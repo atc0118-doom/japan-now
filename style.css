@@ -29,12 +29,23 @@ main{max-width:640px;margin:0 auto;padding:20px 16px 60px}
    .dashboard-grid in the same document order, no visual change at all. */
 .dashboard-grid{display:block}
 .col-main,.col-side{display:contents}
+.col-side-note{display:none}
 
 @media(min-width:900px){
   main{max-width:1180px}
   .dashboard-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:20px;align-items:start}
   .col-main,.col-side{display:flex;flex-direction:column;gap:20px}
   .card{margin-top:0}
+  /* FIX: right column ended early on desktop, leaving a large visual gap
+     below it. A compact repeat of the footer disclaimer at the end of the
+     column gives it a deliberate stopping point instead of just trailing
+     off into empty space. Hidden on mobile (see .col-side-note{display:none}
+     above) since the full-width footer already covers this there and a
+     second copy would just be redundant on a narrow screen. */
+  .col-side-note{
+    display:block;color:var(--muted);font-size:11px;line-height:1.6;
+    padding:4px 2px 0;
+  }
   /* FIX: News is naturally much longer than warnings+earthquakes combined,
      so the right column was finishing early and leaving a large blank gap
      below it while the page kept scrolling through news — visually
