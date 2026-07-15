@@ -13,6 +13,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   dedupeByTitleStem,
+  titleStem,
   extractActiveWarningNames,
   parseRss,
   clean,
@@ -334,4 +335,17 @@ test('parseRss strips a pipe suffix even with no space after the pipe', () => {
   const xml = `<item><title>皇室典範改正案、きょうの採決見送り 野党側は「旧宮家養子案」追及（2026年7月14日掲載） |日テレNEWS NNN</title><link>https://example.com/13</link></item>`;
   const items = parseRss(xml, 'Test');
   assert.equal(items[0].title, '皇室典範改正案、きょうの採決見送り 野党側は「旧宮家養子案」追及（2026年7月14日掲載）');
+});
+
+test('titleStem produces the same stem for two headlines sharing an identical opening', () => {
+  const shared = '北海道で大雪となり交通機関に大きな影響が出ている模様で気象台が注意を呼びかけている';
+  const a = titleStem(`${shared}という内容の記事です`);
+  const b = titleStem(`${shared}とのことで詳細を確認中`);
+  assert.equal(a, b, 'both headlines share a long enough opening that the 24-character stem should be identical');
+});
+
+test('titleStem is stable regardless of case and punctuation noise', () => {
+  const a = titleStem('Tokyo Marathon 2026!!');
+  const b = titleStem('tokyo marathon 2026');
+  assert.equal(a, b);
 });
