@@ -104,6 +104,23 @@ test('parseRss strips a trailing pipe-separated outlet suffix (e.g. "| TBS NEWS 
   assert.equal(items[0].title, '見出しテスト');
 });
 
+test('parseRss strips a trailing FULLWIDTH pipe-separated outlet suffix (e.g. "｜ 日テレNEWS NNN")', () => {
+  // Regression: a real headline slipped through because the outlet used the
+  // fullwidth pipe｜(U+FF5C), which the ASCII-only regex didn't match.
+  const xml = `<item><title>皇室典範改正案 参院で審議 きょう午後採決で調整（2026年7月14日掲載） ｜ 日テレNEWS NNN</title><link>https://example.com/6</link></item>`;
+  const items = parseRss(xml, 'Test');
+  assert.equal(items[0].title, '皇室典範改正案 参院で審議 きょう午後採決で調整（2026年7月14日掲載）');
+});
+
+test('parseRss strips a trailing parenthetical mixing the outlet name with a network code (e.g. "（日テレNEWS NNN）")', () => {
+  // Regression: a real headline slipped through because the parenthetical
+  // contained more than just the bare code ("日テレNEWS NNN", not just "NNN"),
+  // which the original all-uppercase-only regex didn't match.
+  const xml = `<item><title>台風9号は温帯低気圧に前線ともない今夜から北日本を通過大雨おそれ（日テレNEWS NNN）</title><link>https://example.com/7</link></item>`;
+  const items = parseRss(xml, 'Test');
+  assert.equal(items[0].title, '台風9号は温帯低気圧に前線ともない今夜から北日本を通過大雨おそれ');
+});
+
 test('parseRss extracts title/link/source/pubDate from a minimal RSS item', () => {
   const xml = `<rss><channel>
     <item>
