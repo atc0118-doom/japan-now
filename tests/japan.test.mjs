@@ -381,3 +381,20 @@ test('parseRss actually removes a foreign-only story end to end, not just at the
   const items = parseRss(xml, 'Test');
   assert.equal(items.length, 0);
 });
+
+test('isForeignOnlyStory filters a UK PM story (Burnham naming his cabinet) that only matched via the generic "首相" keyword', () => {
+  assert.equal(isForeignOnlyStory('バーナム次期英首相、財務相にマフムード内相を指名へ＝ＦＴ'), true);
+  assert.equal(isForeignOnlyStory('英首相にバーナム氏就任へ 下院議員9割の推薦獲得'), true);
+});
+
+test("isForeignOnlyStory filters a US-Iran conflict story with no Japan mention, even from NHK's own unfiltered top feed", () => {
+  assert.equal(isForeignOnlyStory('米軍 イランに5日連続の攻撃 イラン「国益を最後まで守る」'), true);
+});
+
+test('isForeignOnlyStory filters a story where "国会" is used generically for a foreign parliament (Iran speaker), not Japan\'s Diet', () => {
+  assert.equal(isForeignOnlyStory('米との覚書「固執する理由ない」 ガリバフ国会議長米は選択し使い果たしたと主張'), true);
+});
+
+test('isForeignOnlyStory does NOT filter a genuinely Japan-relevant story about a foreign leader visiting Japan (来日/訪日, no literal 日本)', () => {
+  assert.equal(isForeignOnlyStory('英首相が来日、経済協力を協議'), false);
+});
