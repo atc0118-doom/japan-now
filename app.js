@@ -35,6 +35,7 @@ function fallbackView(error){
   return {
     ok:true, mode:'fallback', dataStatus:'FALLBACK — 取得失敗', sourceError:error,
     updatedAt:new Date().toISOString(), news:[], newsCount:0, newsOk:false,
+    regionalNews:[], regionalNewsCount:0,
     warnings:[], warningCount:0, warningsOk:false, earthquakes:[], quakeCount:0, quakesOk:false
   };
 }
@@ -46,6 +47,7 @@ function render(data){
   $('updatedAt').textContent = data.updatedAt ? `更新: ${new Date(data.updatedAt).toLocaleTimeString('ja-JP')}` : '';
 
   renderNews(data.news || [], data.newsCount ?? (data.news||[]).length, data.newsOk !== false);
+  renderRegionalNews(data.regionalNews || [], data.regionalNewsCount ?? (data.regionalNews||[]).length, data.newsOk !== false);
   renderWarnings(data.warnings || [], data.warningCount ?? (data.warnings||[]).length, data.warningsOk !== false);
   renderQuakes(data.earthquakes || [], data.quakeCount ?? (data.earthquakes||[]).length, data.quakesOk !== false);
 
@@ -61,6 +63,30 @@ function renderNews(news, count, ok){
     el.innerHTML = ok
       ? '<p class="empty">現在、該当するニュースはありません。</p>'
       : '<p class="empty error">ニュースの取得に失敗しました。しばらくしてから再度お試しください。</p>';
+    return;
+  }
+  el.innerHTML = news.map(n => `
+    <a class="news-item" href="${escapeHtml(n.url)}" target="_blank" rel="noopener">
+      <span class="news-source">${escapeHtml(n.source)}</span>
+      <span class="news-title">${escapeHtml(n.title)}</span>
+      <span class="news-time">${escapeHtml(timeAgo(n.published))}</span>
+    </a>
+  `).join('');
+}
+
+// FIX: regional news used to be merged into the main NEWS list, sorted
+// purely by publish time. National/political news updates far more
+// frequently, so regional stories were successfully fetched but routinely
+// pushed out of the display slice before ever being visible. This is its
+// own section now, so it isn't competing with national update frequency
+// for screen space.
+function renderRegionalNews(news, count, ok){
+  $('regionalNewsCount').textContent = `${count} 件`;
+  const el = $('regionalNewsList');
+  if(!news.length){
+    el.innerHTML = ok
+      ? '<p class="empty">現在、該当する地方の話題はありません。</p>'
+      : '<p class="empty error">地方ニュースの取得に失敗しました。しばらくしてから再度お試しください。</p>';
     return;
   }
   el.innerHTML = news.map(n => `
