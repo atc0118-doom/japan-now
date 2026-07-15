@@ -65,7 +65,12 @@ const GOOGLE_NEWS_JP_URL = `https://news.google.com/rss/search?q=${GOOGLE_NEWS_J
 // Google News query using all 47 prefecture names, kept as its own request
 // (rather than merged into the query above) so the URL doesn't balloon past
 // a reasonable length with 60+ OR terms in one query.
-const GOOGLE_NEWS_JP_REGIONAL_QUERY = encodeURIComponent('(北海道 OR 青森県 OR 岩手県 OR 宮城県 OR 秋田県 OR 山形県 OR 福島県 OR 茨城県 OR 栃木県 OR 群馬県 OR 埼玉県 OR 千葉県 OR 東京都 OR 神奈川県 OR 新潟県 OR 富山県 OR 石川県 OR 福井県 OR 山梨県 OR 長野県 OR 岐阜県 OR 静岡県 OR 愛知県 OR 三重県 OR 滋賀県 OR 京都府 OR 大阪府 OR 兵庫県 OR 奈良県 OR 和歌山県 OR 鳥取県 OR 島根県 OR 岡山県 OR 広島県 OR 山口県 OR 徳島県 OR 香川県 OR 愛媛県 OR 高知県 OR 福岡県 OR 佐賀県 OR 長崎県 OR 熊本県 OR 大分県 OR 宮崎県 OR 鹿児島県 OR 沖縄県)');
+// Extracted as its own array (not just embedded in the query string below)
+// so the same list can be reused to tag each fetched article by which
+// prefecture(s) it matches — needed for the per-prefecture cap in
+// capPerPrefecture, see fetchGoogleNewsJPRegional.
+const PREFECTURE_NAMES = ['北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県','茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','富山県','石川県','福井県','山梨県','長野県','岐阜県','静岡県','愛知県','三重県','滋賀県','京都府','大阪府','兵庫県','奈良県','和歌山県','鳥取県','島根県','岡山県','広島県','山口県','徳島県','香川県','愛媛県','高知県','福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県'];
+const GOOGLE_NEWS_JP_REGIONAL_QUERY = encodeURIComponent(`(${PREFECTURE_NAMES.join(' OR ')})`);
 const GOOGLE_NEWS_JP_REGIONAL_URL = `https://news.google.com/rss/search?q=${GOOGLE_NEWS_JP_REGIONAL_QUERY}&hl=ja&gl=JP&ceid=JP:ja`;
 
 const JMA_AREA_JSON_URL = 'https://www.jma.go.jp/bosai/common/const/area.json';
@@ -243,11 +248,42 @@ async function fetchAllNews(){
   // Cross-dedupe: don't show the exact same story in both the national and
   // regional cards just because it happened to match both queries.
   const nationalStems = new Set(national.map(a => titleStem(a.title)));
-  const regional = dedupeByTitleStem(regionalRaw)
+  const regionalSorted = dedupeByTitleStem(regionalRaw)
     .filter(a => !nationalStems.has(titleStem(a.title)))
     .sort((a,b)=> new Date(b.published||0) - new Date(a.published||0));
+  // FIX: multi-region stories (e.g. "北海道・東北で大雨" mentioning several OR
+  // terms in one headline) match the query with higher density than a
+  // typical single-prefecture local story, so they tend to rank higher in
+  // Google's own relevance ordering — in practice this meant the regional
+  // section skewed heavily toward whichever region had an active multi-day
+  // weather story, reading as "mostly Hokkaido/Tohoku" instead of
+  // nationwide. Capping how many articles any single prefecture can
+  // contribute (after sorting by recency) guarantees geographic spread
+  // regardless of which region's stories happen to rank highest that cycle.
+  const regional = capPerPrefecture(regionalSorted, 3);
 
   return { items: national, regionalItems: regional, report };
+}
+
+// Pulled out as its own function so it can be unit-tested without a network
+// call — see tests/japan.test.mjs. Input is expected to already be sorted
+// (most recent first); this only enforces the per-prefecture cap, it
+// doesn't re-sort. An article can match multiple prefectures (e.g. a
+// multi-region weather story) — it still only counts once, against the
+// FIRST matching prefecture found, so it doesn't consume cap budget from
+// every region it happens to mention.
+function capPerPrefecture(items, maxPerPrefecture){
+  const countByPrefecture = new Map();
+  const out = [];
+  for(const item of items){
+    const matched = PREFECTURE_NAMES.find(pref => item.title.includes(pref));
+    if(!matched){ out.push(item); continue; } // no prefecture matched at all — don't cap what we can't attribute
+    const count = countByPrefecture.get(matched) || 0;
+    if(count >= maxPerPrefecture) continue;
+    countByPrefecture.set(matched, count + 1);
+    out.push(item);
+  }
+  return out;
 }
 
 async function fetchNHKNews(){
@@ -637,4 +673,4 @@ function fallbackPayload(error){
 
 // Named exports for unit testing pure logic (does not affect the default
 // export Vercel invokes — same pattern used in ORACLE's api/risk.js).
-export { dedupeByTitleStem, titleStem, isSourceOk, extractActiveWarningNames, parseRss, clean, decodeXml, groupWarningsByPrefecture, prioritizeEarthquakeEntries, isRoutineBulletin };
+export { dedupeByTitleStem, titleStem, isSourceOk, extractActiveWarningNames, parseRss, clean, decodeXml, groupWarningsByPrefecture, prioritizeEarthquakeEntries, isRoutineBulletin, capPerPrefecture };
