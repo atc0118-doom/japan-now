@@ -80,6 +80,30 @@ test('clean collapses whitespace and trims', () => {
   assert.equal(clean('  hello   world  \n\t'), 'hello world');
 });
 
+test('parseRss strips a trailing broadcaster network-code credit like "(NNN)"', () => {
+  const xml = `<item><title>大雨で川が氾濫危険水位に迫る (NNN)</title><link>https://example.com/2</link></item>`;
+  const items = parseRss(xml, 'Test');
+  assert.equal(items[0].title, '大雨で川が氾濫危険水位に迫る');
+});
+
+test('parseRss strips a full-width trailing network-code credit like "（NNN）"', () => {
+  const xml = `<item><title>台風接近で交通機関に影響（NNN）</title><link>https://example.com/3</link></item>`;
+  const items = parseRss(xml, 'Test');
+  assert.equal(items[0].title, '台風接近で交通機関に影響');
+});
+
+test('parseRss does NOT strip genuine Japanese parenthetical content', () => {
+  const xml = `<item><title>首相会見（要旨）詳細を発表</title><link>https://example.com/4</link></item>`;
+  const items = parseRss(xml, 'Test');
+  assert.equal(items[0].title, '首相会見（要旨）詳細を発表', 'legitimate Japanese parenthetical content should not be mistaken for a network credit');
+});
+
+test('parseRss strips a trailing pipe-separated outlet suffix (e.g. "| TBS NEWS DIG")', () => {
+  const xml = `<item><title>見出しテスト | TBS NEWS DIG (1ページ)</title><link>https://example.com/5</link></item>`;
+  const items = parseRss(xml, 'Test');
+  assert.equal(items[0].title, '見出しテスト');
+});
+
 test('parseRss extracts title/link/source/pubDate from a minimal RSS item', () => {
   const xml = `<rss><channel>
     <item>
