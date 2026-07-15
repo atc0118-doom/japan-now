@@ -176,6 +176,7 @@ async function buildPayload(){
     warningCount: warnings.length,
     warningsOk,
     earthquakes: quakes.slice(0, 10),
+    quakeCount: quakes.length,
     quakesOk,
     sourceReport: [
       ...newsReport,
@@ -553,6 +554,7 @@ function fallbackPayload(error){
     warningCount: 0,
     warningsOk: false,
     earthquakes: [],
+    quakeCount: 0,
     quakesOk: false,
     sourceReport: [{ name:'All sources', ok:false, error }]
   };
