@@ -197,8 +197,20 @@ function parseRss(xml, fallbackSource='RSS'){
     // the news list. Now strips both separator styles, and hard-caps the
     // result length as a safety net for any outlet using a format neither
     // pattern catches.
+    // FIX: same class of issue as the earlier "| TBS NEWS DIG" case, but a
+    // different separator style. Japanese TV news headlines commonly end
+    // with a trailing network-affiliation credit in parentheses, e.g.
+    // "(NNN)" for Nippon News Network (日本テレビ系), or similarly
+    // JNN/FNN/ANN/TXN for the other keiretsu — a short, all-caps code, not
+    // meaningful headline content. Stripped only when it's 2-6 uppercase
+    // Latin letters in trailing (half- or full-width) parentheses, so
+    // genuine Japanese parenthetical content (which won't match this
+    // pattern) is left alone.
     const rawTitle = decodeXml((block.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/)?.[1] || block.match(/<title>([\s\S]*?)<\/title>/)?.[1] || ''));
-    const title = clean(rawTitle.replace(/\s+[-|]\s+[^-|]+$/,'')).slice(0, 120);
+    const title = clean(rawTitle
+      .replace(/\s+[-|]\s+[^-|]+$/,'')
+      .replace(/[(（]\s*[A-Z]{2,6}\s*[)）]\s*$/,'')
+    ).slice(0, 120);
     const url = decodeXml(block.match(/<link>([\s\S]*?)<\/link>/)?.[1] || '');
     const source = decodeXml(block.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1] || fallbackSource);
     const pub = decodeXml(block.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] || '');
