@@ -124,6 +124,7 @@ async function buildPayload(){
   ]);
 
   const news = newsResult.status === 'fulfilled' ? newsResult.value.items : [];
+  const regionalNews = newsResult.status === 'fulfilled' ? newsResult.value.regionalItems : [];
   const newsReport = newsResult.status === 'fulfilled' ? newsResult.value.report : [{ name:'News', ok:false, error: newsResult.reason?.message || 'error' }];
 
   const warnings = warningsResult.status === 'fulfilled' ? warningsResult.value.items : [];
@@ -138,7 +139,7 @@ async function buildPayload(){
     ...(quakesError ? [`JMA earthquakes ${quakesError}`] : [])
   ];
 
-  const anyLiveNews = news.length > 0;
+  const anyLiveNews = news.length > 0 || regionalNews.length > 0;
   const anyLiveDisaster = warnings.length > 0 || quakes.length > 0 || (warningsResult.status === 'fulfilled' && !warningsError);
   // FIX (honesty, same principle as ORACLE): if literally nothing came back
   // from any source, say so plainly rather than showing an empty dashboard
@@ -172,6 +173,8 @@ async function buildPayload(){
     news: news.slice(0, 30),
     newsCount: news.length,
     newsOk,
+    regionalNews: regionalNews.slice(0, 20),
+    regionalNewsCount: regionalNews.length,
     warnings, // only prefectures with an ACTIVE warning/advisory right now — see fetchAllWarnings
     warningCount: warnings.length,
     warningsOk,
@@ -195,11 +198,19 @@ async function buildPayload(){
 
 // ---- News ----
 
+// FIX: national and regional news used to be merged into one time-sorted
+// list before display. National/political news updates far more frequently
+// than the regional query does, so even though the regional query was
+// successfully fetching local stories, they'd get pushed out of the top-30
+// display slice before ever being seen — "fetched but buried", not actually
+// visible. Splitting them into two separate lists/sections means regional
+// stories are no longer competing with national update frequency for
+// display slots.
 async function fetchAllNews(){
   const collectors = [
     ['NHK', fetchNHKNews],
     ['Google News (Japan)', fetchGoogleNewsJP],
-    ['Google News (地域)', async () => (await fetchGoogleNewsJPRegional()).slice(0, 15)]
+    ['Google News (地域)', fetchGoogleNewsJPRegional]
   ];
   const settled = await Promise.allSettled(collectors.map(async ([name, fn])=>{
     const items = await fn();
@@ -210,10 +221,20 @@ async function fetchAllNews(){
     if(r.status === 'fulfilled') return { name, ok:true, count:r.value.count };
     return { name, ok:false, count:0, error: r.reason?.message || 'error' };
   });
-  let items = [];
-  for(const r of settled){ if(r.status === 'fulfilled') items.push(...r.value.items); }
-  items = dedupeByTitleStem(items).sort((a,b)=> new Date(b.published||0) - new Date(a.published||0));
-  return { items, report };
+
+  const nationalRaw = [];
+  for(const r of settled.slice(0, 2)){ if(r.status === 'fulfilled') nationalRaw.push(...r.value.items); }
+  const national = dedupeByTitleStem(nationalRaw).sort((a,b)=> new Date(b.published||0) - new Date(a.published||0));
+
+  const regionalRaw = settled[2]?.status === 'fulfilled' ? settled[2].value.items : [];
+  // Cross-dedupe: don't show the exact same story in both the national and
+  // regional cards just because it happened to match both queries.
+  const nationalStems = new Set(national.map(a => titleStem(a.title)));
+  const regional = dedupeByTitleStem(regionalRaw)
+    .filter(a => !nationalStems.has(titleStem(a.title)))
+    .sort((a,b)=> new Date(b.published||0) - new Date(a.published||0));
+
+  return { items: national, regionalItems: regional, report };
 }
 
 async function fetchNHKNews(){
@@ -313,21 +334,27 @@ function decodeXml(s=''){
 }
 function clean(s=''){ return String(s).replace(/\s+/g,' ').trim(); }
 
+// FIX: this originally split the cleaned title on spaces and took the
+// first 10 "words" (the same approach ORACLE uses for English headlines).
+// Japanese text has no spaces between words at all, so splitting on ' '
+// just returns the entire string as a single element — meaning the "stem"
+// was actually the WHOLE title, not a meaningful prefix, and two headlines
+// sharing an opening but differing later (a very common RSS pattern —
+// outlets append "、詳細は" or similar) never matched as duplicates. Using a
+// fixed character-count prefix instead works for both English and
+// Japanese without needing a real tokenizer (which isn't available here).
+// Pulled out as its own function so both dedupeByTitleStem (within one
+// list) and fetchAllNews (across the national/regional lists) can use the
+// same stemming logic.
+function titleStem(title){
+  return clean(title).toLowerCase().replace(/[^a-z0-9ぁ-んァ-ヶ一-龠]+/g,'').slice(0, 24);
+}
+
 function dedupeByTitleStem(items){
-  // FIX: this originally split the cleaned title on spaces and took the
-  // first 10 "words" (the same approach ORACLE uses for English headlines).
-  // Japanese text has no spaces between words at all, so splitting on ' '
-  // just returns the entire string as a single element — meaning the "stem"
-  // was actually the WHOLE title, not a meaningful prefix, and two headlines
-  // sharing an opening but differing later (a very common RSS pattern —
-  // outlets append "、詳細は" or similar) never matched as duplicates. Using a
-  // fixed character-count prefix instead works for both English and
-  // Japanese without needing a real tokenizer (which isn't available here).
   const seen = new Set();
   const out = [];
   for(const a of items){
-    const normalized = clean(a.title).toLowerCase().replace(/[^a-z0-9ぁ-んァ-ヶ一-龠]+/g,'');
-    const key = normalized.slice(0, 24);
+    const key = titleStem(a.title);
     if(!key || seen.has(key)) continue;
     seen.add(key);
     out.push(a);
@@ -557,6 +584,8 @@ function fallbackPayload(error){
     news: [],
     newsCount: 0,
     newsOk: false,
+    regionalNews: [],
+    regionalNewsCount: 0,
     warnings: [],
     warningCount: 0,
     warningsOk: false,
@@ -569,4 +598,4 @@ function fallbackPayload(error){
 
 // Named exports for unit testing pure logic (does not affect the default
 // export Vercel invokes — same pattern used in ORACLE's api/risk.js).
-export { dedupeByTitleStem, extractActiveWarningNames, parseRss, clean, decodeXml, groupWarningsByPrefecture, prioritizeEarthquakeEntries, isRoutineBulletin };
+export { dedupeByTitleStem, titleStem, extractActiveWarningNames, parseRss, clean, decodeXml, groupWarningsByPrefecture, prioritizeEarthquakeEntries, isRoutineBulletin };
