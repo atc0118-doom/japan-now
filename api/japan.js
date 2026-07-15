@@ -255,8 +255,13 @@ function parseRss(xml, fallbackSource='RSS'){
 // whether a word appears — not whether the story is actually about Japan.
 // Real observed false positives: a Russian dissident's election campaign
 // matched "選挙"; a Ryanair incident in Europe matched "事故"; a Trump-Israel-
-// Syria-Lebanon diplomatic story matched multiple keywords at once. None of
-// these have anything to do with Japan.
+// Syria-Lebanon diplomatic story matched multiple keywords at once; a UK
+// political story (next PM Burnham naming his cabinet) matched "首相"; an
+// Iran-US conflict story came through NHK's own top-headlines feed
+// unfiltered (this filter applies to every source, not just the political
+// Google News query); Iran's parliament speaker (Ghalibaf) commenting on US
+// relations matched "国会" — used generically for "a parliament", not
+// specifically Japan's Diet. None of these have anything to do with Japan.
 //
 // This is a scoped, imperfect heuristic — like SATIRE_INDICATOR-style lists
 // used elsewhere in this project's sibling (ORACLE) — not a real
@@ -268,8 +273,8 @@ function parseRss(xml, fallbackSource='RSS'){
 // story that discusses a foreign country without using any of the
 // JAPAN_RELEVANCE_TERMS below — an accepted, documented tradeoff rather
 // than a hidden one.
-const FOREIGN_ONLY_INDICATOR_TERMS = ['ロシア','ウクライナ','イスラエル','ガザ','シリア','レバノン','ライアンエアー'];
-const JAPAN_RELEVANCE_TERMS = ['日本','日系','邦人','在日','対日','日米','日露','日中','日韓','日ロ'];
+const FOREIGN_ONLY_INDICATOR_TERMS = ['ロシア','ウクライナ','イスラエル','ガザ','シリア','レバノン','ライアンエアー','イラン','英国','英首相','バーナム','ガリバフ'];
+const JAPAN_RELEVANCE_TERMS = ['日本','日系','邦人','在日','対日','日米','日露','日中','日韓','日ロ','日英','来日','訪日'];
 function isForeignOnlyStory(title){
   const t = String(title || '');
   const hasForeignSignal = FOREIGN_ONLY_INDICATOR_TERMS.some(term => t.includes(term));
