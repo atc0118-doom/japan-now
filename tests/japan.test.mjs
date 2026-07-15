@@ -22,6 +22,7 @@ import {
   groupWarningsByPrefecture,
   prioritizeEarthquakeEntries,
   isRoutineBulletin,
+  capPerPrefecture
 } from '../api/japan.js';
 
 // Trimmed down but structurally real fixture (captured live, then trimmed
@@ -388,4 +389,43 @@ test('isSourceOk treats a missing source name as unverified, not confirmed-ok', 
   // this project (baseline data, degraded sources, etc.).
   const report = [{ name: 'NHK', ok: true }];
   assert.equal(isSourceOk('fulfilled', report, 'Some Source That Does Not Exist'), false);
+});
+
+// Regression tests for the "地方ニュース、北海道、東北ばかり" fix: no single
+// prefecture should be able to dominate the regional news list.
+
+test('capPerPrefecture limits how many articles a single prefecture can contribute', () => {
+  const items = Array.from({length: 10}, (_, i) => ({ title: `北海道でニュース${i}件目が発生` }));
+  const result = capPerPrefecture(items, 3);
+  assert.equal(result.length, 3, 'only 3 of the 10 Hokkaido articles should survive the cap');
+});
+
+test('capPerPrefecture lets different prefectures each contribute up to the cap independently', () => {
+  const items = [
+    ...Array.from({length: 5}, (_, i) => ({ title: `北海道の話題${i}` })),
+    ...Array.from({length: 5}, (_, i) => ({ title: `愛媛県の話題${i}` }))
+  ];
+  const result = capPerPrefecture(items, 3);
+  assert.equal(result.length, 6, '3 from Hokkaido + 3 from Ehime');
+});
+
+test('capPerPrefecture counts a multi-region article against only the first matching prefecture, not every region it mentions', () => {
+  const items = [
+    { title: '北海道・東北地方で大雨警報' }, // matches both 北海道 and one of the Tohoku names
+    ...Array.from({length: 3}, (_, i) => ({ title: `北海道の別の話題${i}` }))
+  ];
+  const result = capPerPrefecture(items, 3);
+  // The multi-region article counts once (against 北海道, the first match in
+  // PREFECTURE_NAMES order), leaving room for exactly 2 more 北海道 articles
+  // before hitting the cap of 3.
+  assert.equal(result.length, 3);
+});
+
+test('capPerPrefecture leaves articles with no matching prefecture name untouched (not capped, since they cannot be attributed)', () => {
+  const items = [
+    { title: '見出しに都道府県名が含まれない記事' },
+    { title: 'また別の都道府県名なし記事' }
+  ];
+  const result = capPerPrefecture(items, 1);
+  assert.equal(result.length, 2, 'articles that cannot be attributed to any prefecture should not be capped');
 });
