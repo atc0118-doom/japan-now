@@ -167,11 +167,12 @@ async function buildPayload(){
   // "現在、該当する地方の話題はありません" (a calm "nothing found" message)
   // instead of reporting a real fetch failure — exactly the same
   // "empty vs failed" conflation already fixed for warnings/quakes, just
-  // reintroduced here for the newest section. This checks the regional
-  // collector's own report entry specifically.
-  const regionalNewsOk = newsResult.status === 'fulfilled'
-    ? newsReport.find(r => r.name === 'Google News (地域)')?.ok !== false
-    : false;
+  // reintroduced here for the newest section. Pulled out into its own
+  // function (isSourceOk, below) so this specific check is unit-tested
+  // rather than left as untested inline logic in buildPayload — the same
+  // treatment already given to isRoutineBulletin/groupWarningsByPrefecture/
+  // prioritizeEarthquakeEntries after each of THEM caused a real bug.
+  const regionalNewsOk = isSourceOk(newsResult.status, newsReport, 'Google News (地域)');
   const warningsOk = !warningsError;
   const quakesOk = !quakesError;
 
@@ -358,6 +359,23 @@ function clean(s=''){ return String(s).replace(/\s+/g,' ').trim(); }
 // Pulled out as its own function so both dedupeByTitleStem (within one
 // list) and fetchAllNews (across the national/regional lists) can use the
 // same stemming logic.
+// FIX: extracted specifically because the inline version of this check
+// (newsReport.find(...)?.ok !== false) was the exact spot where a real bug
+// happened — the regional news section briefly reused a different,
+// blanket "did ANY of the 3 news sources succeed" flag instead of checking
+// its own source specifically. Pulling this into its own named,
+// unit-tested function makes it much harder for that mistake — reusing the
+// wrong flag, or getting the fallback-when-missing/rejected behavior wrong
+// — to happen again unnoticed. `settledStatus` is the Promise.allSettled
+// status ('fulfilled'/'rejected') of the whole batch this source's report
+// came from; if the whole batch rejected, every source in it is
+// unreachable, regardless of whether `report` (the fallback placeholder
+// array) happens to contain an entry with this name.
+function isSourceOk(settledStatus, report, sourceName){
+  if(settledStatus !== 'fulfilled') return false;
+  return report.find(r => r.name === sourceName)?.ok !== false;
+}
+
 function titleStem(title){
   return clean(title).toLowerCase().replace(/[^a-z0-9ぁ-んァ-ヶ一-龠]+/g,'').slice(0, 24);
 }
@@ -608,4 +626,4 @@ function fallbackPayload(error){
 
 // Named exports for unit testing pure logic (does not affect the default
 // export Vercel invokes — same pattern used in ORACLE's api/risk.js).
-export { dedupeByTitleStem, titleStem, extractActiveWarningNames, parseRss, clean, decodeXml, groupWarningsByPrefecture, prioritizeEarthquakeEntries, isRoutineBulletin };
+export { dedupeByTitleStem, titleStem, isSourceOk, extractActiveWarningNames, parseRss, clean, decodeXml, groupWarningsByPrefecture, prioritizeEarthquakeEntries, isRoutineBulletin };
