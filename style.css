@@ -18,6 +18,25 @@ body{
 }
 main{max-width:640px;margin:0 auto;padding:20px 16px 60px}
 
+/* FIX: on desktop this used to just keep stacking cards in a single narrow
+   640px-max column centered on the page, with huge empty margins on either
+   side — every section (news, warnings, earthquakes) stacked vertically
+   made the page extremely tall for no real reason on a wide screen. Above
+   900px, switch to a 2-column layout: news (usually the longest list) gets
+   a wider left column, warnings + earthquakes stack in a narrower right
+   column. On mobile, .col-main/.col-side use display:contents so their
+   .card children behave exactly as before — direct stacked children of
+   .dashboard-grid in the same document order, no visual change at all. */
+.dashboard-grid{display:block}
+.col-main,.col-side{display:contents}
+
+@media(min-width:900px){
+  main{max-width:1180px}
+  .dashboard-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:20px;align-items:start}
+  .col-main,.col-side{display:flex;flex-direction:column;gap:20px}
+  .card{margin-top:0}
+}
+
 .hero{padding:24px 4px 8px}
 .hero h1{font-size:28px;font-weight:800;letter-spacing:.04em;margin:0}
 .subtitle{color:var(--muted);margin:4px 0 16px;font-size:14px}
