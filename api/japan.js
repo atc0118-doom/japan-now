@@ -52,6 +52,22 @@ const NHK_RSS_URL = 'https://news.web.nhk/n-data/conf/na/rss/cat0.xml';
 // "tech news that happens to be in Japanese".
 const GOOGLE_NEWS_JP_QUERY = encodeURIComponent('(国会 OR 内閣 OR 首相 OR 与党 OR 野党 OR 政府 OR 経済対策 OR 日銀 OR 選挙 OR 災害 OR 地震 OR 台風 OR 大雨 OR 事件 OR 事故 OR 感染症 OR 皇室)');
 const GOOGLE_NEWS_JP_URL = `https://news.google.com/rss/search?q=${GOOGLE_NEWS_JP_QUERY}&hl=ja&gl=JP&ceid=JP:ja`;
+
+// FIX: the query above is purely national-politics/government-focused, so
+// genuinely local stories (a town's festival, a prefectural assembly
+// decision, a regional business story) never matched it — the news list was
+// effectively "national news, reported redundantly by many different local
+// affiliates" rather than actual regional news. NHK does have a real local
+// news section ("地域ニュース"), but it sits behind a "ご利用意向の確認"
+// (usage-agreement) gate on their NHK ONE platform — a meaningfully
+// different signal than the plain RSS feed used elsewhere here, so it's
+// deliberately not scraped. This is the safer alternative: a SEPARATE
+// Google News query using all 47 prefecture names, kept as its own request
+// (rather than merged into the query above) so the URL doesn't balloon past
+// a reasonable length with 60+ OR terms in one query.
+const GOOGLE_NEWS_JP_REGIONAL_QUERY = encodeURIComponent('(北海道 OR 青森県 OR 岩手県 OR 宮城県 OR 秋田県 OR 山形県 OR 福島県 OR 茨城県 OR 栃木県 OR 群馬県 OR 埼玉県 OR 千葉県 OR 東京都 OR 神奈川県 OR 新潟県 OR 富山県 OR 石川県 OR 福井県 OR 山梨県 OR 長野県 OR 岐阜県 OR 静岡県 OR 愛知県 OR 三重県 OR 滋賀県 OR 京都府 OR 大阪府 OR 兵庫県 OR 奈良県 OR 和歌山県 OR 鳥取県 OR 島根県 OR 岡山県 OR 広島県 OR 山口県 OR 徳島県 OR 香川県 OR 愛媛県 OR 高知県 OR 福岡県 OR 佐賀県 OR 長崎県 OR 熊本県 OR 大分県 OR 宮崎県 OR 鹿児島県 OR 沖縄県)');
+const GOOGLE_NEWS_JP_REGIONAL_URL = `https://news.google.com/rss/search?q=${GOOGLE_NEWS_JP_REGIONAL_QUERY}&hl=ja&gl=JP&ceid=JP:ja`;
+
 const JMA_AREA_JSON_URL = 'https://www.jma.go.jp/bosai/common/const/area.json';
 const JMA_WARNING_BASE = 'https://www.jma.go.jp/bosai/warning/data/warning/';
 const JMA_EQVOL_FEED_URL = 'https://www.data.jma.go.jp/developer/xml/feed/eqvol.xml';
@@ -174,7 +190,8 @@ async function buildPayload(){
 async function fetchAllNews(){
   const collectors = [
     ['NHK', fetchNHKNews],
-    ['Google News (Japan)', fetchGoogleNewsJP]
+    ['Google News (Japan)', fetchGoogleNewsJP],
+    ['Google News (地域)', async () => (await fetchGoogleNewsJPRegional()).slice(0, 15)]
   ];
   const settled = await Promise.allSettled(collectors.map(async ([name, fn])=>{
     const items = await fn();
@@ -201,6 +218,13 @@ async function fetchNHKNews(){
 async function fetchGoogleNewsJP(){
   const r = await fetchWithTimeout(GOOGLE_NEWS_JP_URL, { headers:{ 'user-agent':'JapanNow/1.0' } });
   if(!r.ok) throw new Error('google_news_jp ' + r.status);
+  const xml = await r.text();
+  return parseRss(xml, 'Google News');
+}
+
+async function fetchGoogleNewsJPRegional(){
+  const r = await fetchWithTimeout(GOOGLE_NEWS_JP_REGIONAL_URL, { headers:{ 'user-agent':'JapanNow/1.0' } });
+  if(!r.ok) throw new Error('google_news_jp_regional ' + r.status);
   const xml = await r.text();
   return parseRss(xml, 'Google News');
 }
