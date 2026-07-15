@@ -176,7 +176,14 @@ async function buildPayload(){
     warningCount: warnings.length,
     warningsOk,
     earthquakes: quakes.slice(0, 10),
-    quakeCount: quakes.length,
+    // FIX: this used to count ALL entries (urgent + routine bulletins), so
+    // a quiet day with 8 volcanoes under routine "定時" ashfall watch and
+    // just 1 real earthquake report would show "9 件" — giving the opposite
+    // impression of the "urgent info first" fix applied earlier. The header
+    // count now reflects only genuine events (matching what "定時"-tagged
+    // items are NOT), since that's what a count next to "地震・火山情報" should
+    // mean — not "how many bulletins exist right now".
+    quakeCount: quakes.filter(q => !q.isRoutine).length,
     quakesOk,
     sourceReport: [
       ...newsReport,
