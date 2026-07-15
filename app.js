@@ -35,7 +35,7 @@ function fallbackView(error){
   return {
     ok:true, mode:'fallback', dataStatus:'FALLBACK — 取得失敗', sourceError:error,
     updatedAt:new Date().toISOString(), news:[], newsOk:false,
-    regionalNews:[],
+    regionalNews:[], regionalNewsOk:false,
     warnings:[], warningCount:0, warningsOk:false, earthquakes:[], quakesOk:false
   };
 }
@@ -56,7 +56,7 @@ function render(data){
   // length. Warnings is unaffected — that list is never capped, so its
   // count already matched what's shown.
   renderNews(data.news || [], (data.news || []).length, data.newsOk !== false);
-  renderRegionalNews(data.regionalNews || [], (data.regionalNews || []).length, data.newsOk !== false);
+  renderRegionalNews(data.regionalNews || [], (data.regionalNews || []).length, data.regionalNewsOk !== false);
   renderWarnings(data.warnings || [], data.warningCount ?? (data.warnings||[]).length, data.warningsOk !== false);
   renderQuakes(data.earthquakes || [], data.quakesOk !== false);
 
