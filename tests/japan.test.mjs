@@ -20,7 +20,8 @@ import {
   decodeXml,
   groupWarningsByPrefecture,
   prioritizeEarthquakeEntries,
-  isRoutineBulletin
+  isRoutineBulletin,
+  isForeignOnlyStory
 } from '../api/japan.js';
 
 // Trimmed down but structurally real fixture (captured live, then trimmed
@@ -350,3 +351,33 @@ test('titleStem is stable regardless of case and punctuation noise', () => {
   assert.equal(a, b);
 });
 
+
+// Regression tests for the "日本のサイトのはずが外国のニュースが混ざる" fix:
+// real observed cases that matched the political/disaster keyword query
+// without actually being about Japan.
+
+test('isForeignOnlyStory filters a Russian dissident story that only matched via the generic "選挙" keyword', () => {
+  assert.equal(isForeignOnlyStory('ロシア反体制政治家、当局が選挙活動を妨害と批判'), true);
+});
+
+test('isForeignOnlyStory filters a Trump-Israel-Syria-Lebanon diplomatic story with zero Japan mention', () => {
+  assert.equal(isForeignOnlyStory('トランプ氏 イスラエル首相に対しシリアとレバノンからの軍の撤収要請か 米報道'), true);
+});
+
+test('isForeignOnlyStory filters a European Ryanair incident that only matched via the generic "事故" keyword', () => {
+  assert.equal(isForeignOnlyStory('夫が「数分間」飛行機の外に吸い出され……妻が恐怖の体験語る ライアンエアー機事故'), true);
+});
+
+test('isForeignOnlyStory does NOT filter a story about Japan-Russia relations, since it mentions 日露', () => {
+  assert.equal(isForeignOnlyStory('日露首脳会談、北方領土問題を協議'), false);
+});
+
+test('isForeignOnlyStory does NOT filter an ordinary domestic story with no foreign-country signal at all', () => {
+  assert.equal(isForeignOnlyStory('皇室典範改正案、参議院で審議入り'), false);
+});
+
+test('parseRss actually removes a foreign-only story end to end, not just at the isForeignOnlyStory level', () => {
+  const xml = `<item><title>ロシア反体制政治家、当局が選挙活動を妨害と批判</title><link>https://example.com/14</link></item>`;
+  const items = parseRss(xml, 'Test');
+  assert.equal(items.length, 0);
+});
