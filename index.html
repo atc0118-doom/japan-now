@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>JAPAN NOW — 今、日本で起きていること</title>
+<meta name="description" content="公開情報から、日本のニュースと防災情報を一目で。予測やスコアリングは行いません。" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <h1>JAPAN NOW</h1>
+      <p class="subtitle">今、日本で起きていること</p>
+      <div class="status-row">
+        <span class="status-badge" id="statusBadge">LOADING…</span>
+        <span class="updated" id="updatedAt"></span>
+      </div>
+    </section>
+
+    <section class="card reveal">
+      <div class="card-head"><b>NEWS</b><span id="newsCount">— 件</span></div>
+      <div id="newsList" class="news-list"></div>
+    </section>
+
+    <section class="card reveal">
+      <div class="card-head"><b>気象警報・注意報</b><span id="warningCount">— 件</span></div>
+      <p class="section-note">気象庁が発表している、現在アクティブな警報・注意報がある都道府県のみ表示しています。表示がない場合は「現在アクティブな警報なし」という意味です。</p>
+      <div id="warningList" class="warning-list"></div>
+    </section>
+
+    <section class="card reveal">
+      <div class="card-head"><b>地震・火山情報</b><span></span></div>
+      <div id="quakeList" class="quake-list"></div>
+    </section>
+
+    <footer class="footer">
+      JAPAN NOW — NHK・Google Newsのニュース見出しと、気象庁の警報・地震火山情報を集約して表示しています。スコアやランキングは一切算出していません。表示内容は自動取得された公開情報であり、編集・査読は行っていません。詳細や続報は各リンク先の一次情報でご確認ください。
+    </footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
