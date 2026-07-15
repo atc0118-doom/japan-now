@@ -323,3 +323,15 @@ test('parseRss does not filter out a normal headline that merely contains simila
   assert.equal(items.length, 1);
 });
 
+
+test('parseRss strips a pipe suffix even with no space before the pipe', () => {
+  const xml = `<item><title>皇室典範改正案、きょうの採決見送り 野党側は「旧宮家養子案」追及（2026年7月14日掲載）|日テレNEWS NNN</title><link>https://example.com/12</link></item>`;
+  const items = parseRss(xml, 'Test');
+  assert.equal(items[0].title, '皇室典範改正案、きょうの採決見送り 野党側は「旧宮家養子案」追及（2026年7月14日掲載）');
+});
+
+test('parseRss strips a pipe suffix even with no space after the pipe', () => {
+  const xml = `<item><title>皇室典範改正案、きょうの採決見送り 野党側は「旧宮家養子案」追及（2026年7月14日掲載） |日テレNEWS NNN</title><link>https://example.com/13</link></item>`;
+  const items = parseRss(xml, 'Test');
+  assert.equal(items[0].title, '皇室典範改正案、きょうの採決見送り 野党側は「旧宮家養子案」追及（2026年7月14日掲載）');
+});
