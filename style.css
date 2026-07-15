@@ -57,8 +57,11 @@ main{max-width:640px;margin:0 auto;padding:20px 16px 60px}
 }
 
 .hero{padding:24px 4px 8px}
-.hero h1{font-size:38px;font-weight:800;letter-spacing:.04em;margin:0}
-.subtitle{color:var(--muted);margin:4px 0 16px;font-size:14px}
+.hero h1{
+  font-family:'SF Mono','JetBrains Mono','Fira Code',ui-monospace,Menlo,Consolas,monospace;
+  font-size:38px;font-weight:700;letter-spacing:-.01em;margin:0;
+}
+.subtitle{color:#8fb89f;margin:4px 0 16px;font-size:14px;letter-spacing:.01em}
 .status-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .status-badge{
   display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;
