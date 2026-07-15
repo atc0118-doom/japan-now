@@ -17,7 +17,9 @@ import {
   parseRss,
   clean,
   decodeXml,
-  groupWarningsByPrefecture
+  groupWarningsByPrefecture,
+  prioritizeEarthquakeEntries,
+  isRoutineBulletin
 } from '../api/japan.js';
 
 // Trimmed down but structurally real fixture (captured live, then trimmed
@@ -234,4 +236,49 @@ test('groupWarningsByPrefecture skips offices with no active warnings', () => {
   const result = groupWarningsByPrefecture(officeResults);
   assert.equal(result.length, 1);
   assert.equal(result[0].prefecture, '大阪府');
+});
+
+// Regression tests for the "地震・火山情報が降灰予報（定時）だらけ" fix: actual
+// event reports should always be prioritized over routine scheduled
+// bulletins, and routine bulletins should be deduped per volcano.
+
+test('isRoutineBulletin correctly identifies scheduled ashfall bulletins', () => {
+  assert.equal(isRoutineBulletin('降灰予報（定時）'), true);
+  assert.equal(isRoutineBulletin('降灰予報(定時)'), true, 'half-width parens should also match');
+  assert.equal(isRoutineBulletin('震度速報'), false);
+  assert.equal(isRoutineBulletin('噴火警報'), false);
+  assert.equal(isRoutineBulletin('地震情報'), false);
+});
+
+test('prioritizeEarthquakeEntries puts urgent reports before routine bulletins, regardless of recency', () => {
+  const entries = [
+    { title: '【火山名 霧島山（新燃岳） 降灰予報（定時）】現在...', updated: '2026-07-15T12:00:00+09:00', isRoutine: true },
+    { title: '【火山名 岩手山 降灰予報（定時）】現在...', updated: '2026-07-15T11:00:00+09:00', isRoutine: true },
+    { title: '震度速報 東北地方で震度4を観測', updated: '2026-07-15T09:00:00+09:00', isRoutine: false }
+  ];
+  const result = prioritizeEarthquakeEntries(entries);
+  assert.equal(result[0].title, '震度速報 東北地方で震度4を観測', 'the actual earthquake report should come first even though it is older than the routine bulletins');
+});
+
+test('prioritizeEarthquakeEntries dedupes routine bulletins by volcano, keeping only the freshest', () => {
+  const entries = [
+    { title: '【火山名 霧島山（新燃岳） 降灰予報（定時）】15時発表分', updated: '2026-07-15T15:00:00+09:00', isRoutine: true },
+    { title: '【火山名 霧島山（新燃岳） 降灰予報（定時）】12時発表分', updated: '2026-07-15T12:00:00+09:00', isRoutine: true },
+    { title: '【火山名 岩手山 降灰予報（定時）】現在...', updated: '2026-07-15T14:00:00+09:00', isRoutine: true }
+  ];
+  const result = prioritizeEarthquakeEntries(entries);
+  const kirishimaEntries = result.filter(e => e.title.includes('霧島山'));
+  assert.equal(kirishimaEntries.length, 1, 'only the freshest 霧島山 bulletin should remain');
+  assert.equal(kirishimaEntries[0].title, '【火山名 霧島山（新燃岳） 降灰予報（定時）】15時発表分');
+  assert.equal(result.length, 2, 'one deduped 霧島山 entry plus the 岩手山 entry');
+});
+
+test('prioritizeEarthquakeEntries keeps all urgent entries even if there are many routine ones', () => {
+  const routineEntries = Array.from({length: 15}, (_, i) => ({
+    title: `【火山名 山${i} 降灰予報（定時）】`, updated: '2026-07-15T12:00:00+09:00', isRoutine: true
+  }));
+  const urgentEntry = { title: '震度速報 関東地方で震度3を観測', updated: '2026-07-15T01:00:00+09:00', isRoutine: false };
+  const result = prioritizeEarthquakeEntries([...routineEntries, urgentEntry]);
+  assert.ok(result.some(e => e.title === urgentEntry.title), 'the single urgent entry must not be crowded out by 15 routine bulletins');
+  assert.equal(result[0].title, urgentEntry.title, 'urgent entries come first');
 });
