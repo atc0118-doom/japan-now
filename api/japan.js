@@ -280,6 +280,24 @@ async function fetchJMAOffices(){
 // each split into multiple forecast/warning offices rather than one code
 // per prefecture. Together these DO cover all 47 prefectures; there just
 // isn't a clean 1:1 code-to-prefecture mapping for a few of them.
+
+// FIX (display grouping): JMA's own warning granularity splits Hokkaido into
+// 8 separate offices and Okinawa into 4, so those two showed up as 8 and 4
+// separate rows respectively while every other prefecture showed as exactly
+// one row — a jarring inconsistency once you're looking at the whole list.
+// These codes are copied directly from the actual area.json response
+// fetched earlier while building this (not reconstructed from memory), so
+// there's no transcription-error risk the way a hand-typed 47-row table
+// would carry. Kagoshima's Amami split (460040/460100) is deliberately left
+// alone: Amami is genuinely a separate, distant island chain with materially
+// different weather, so collapsing it into "Kagoshima" would hide real
+// information rather than just tidying up a display quirk.
+const PREFECTURE_GROUP_LABELS = {
+  '011000':'北海道','012000':'北海道','013000':'北海道','014030':'北海道',
+  '014100':'北海道','015000':'北海道','016000':'北海道','017000':'北海道',
+  '471000':'沖縄県','472000':'沖縄県','473000':'沖縄県','474000':'沖縄県'
+};
+
 async function fetchAllWarnings(){
   const offices = await fetchJMAOffices();
   const settled = await Promise.allSettled(offices.map(async (office)=>{
@@ -290,15 +308,13 @@ async function fetchAllWarnings(){
   }));
 
   let failCount = 0;
-  const active = [];
+  const officeResults = [];
   for(const r of settled){
     if(r.status !== 'fulfilled'){ failCount++; continue; }
     const { office, data } = r.value;
-    const warningNames = extractActiveWarningNames(data);
-    if(warningNames.length){
-      active.push({ prefecture: office.name, code: office.code, warnings: warningNames });
-    }
+    officeResults.push({ office, warnings: extractActiveWarningNames(data) });
   }
+  const active = groupWarningsByPrefecture(officeResults);
 
   // If most offices failed to respond, treat the whole warnings pull as
   // degraded rather than confidently reporting "no active warnings" —
@@ -306,6 +322,25 @@ async function fetchAllWarnings(){
   // kind of silent dishonesty ORACLE spent a lot of effort avoiding.
   const error = failCount > offices.length * 0.5 ? `${failCount}/${offices.length} offices unreachable` : null;
   return { items: active, error };
+}
+
+// Pulled out as its own function (rather than inlined in fetchAllWarnings)
+// specifically so it can be unit-tested without mocking network calls — see
+// tests/japan.test.mjs. Input is expected to already be in north-to-south
+// office order (as fetchJMAOffices produces); a Map preserves insertion
+// order, so the first time a display label is seen determines its position
+// in the output.
+function groupWarningsByPrefecture(officeResults){
+  const grouped = new Map();
+  for(const { office, warnings } of officeResults){
+    if(!warnings || !warnings.length) continue;
+    const label = PREFECTURE_GROUP_LABELS[office.code] || office.name;
+    if(!grouped.has(label)) grouped.set(label, { prefecture: label, codes: [], warnings: new Set() });
+    const entry = grouped.get(label);
+    entry.codes.push(office.code);
+    warnings.forEach(w => entry.warnings.add(w));
+  }
+  return [...grouped.values()].map(g => ({ prefecture: g.prefecture, code: g.codes.join(','), warnings: [...g.warnings] }));
 }
 
 // FIX: this was originally written assuming a `{name, status}` shape based
@@ -386,4 +421,4 @@ function fallbackPayload(error){
 
 // Named exports for unit testing pure logic (does not affect the default
 // export Vercel invokes — same pattern used in ORACLE's api/risk.js).
-export { dedupeByTitleStem, extractActiveWarningNames, parseRss, clean, decodeXml };
+export { dedupeByTitleStem, extractActiveWarningNames, parseRss, clean, decodeXml, groupWarningsByPrefecture };
