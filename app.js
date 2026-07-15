@@ -113,12 +113,24 @@ function renderWarnings(warnings, count, ok){
       : '<p class="empty error">警報・注意報の取得に失敗しました。安全のため、気象庁の公式情報を直接ご確認ください。</p>';
     return;
   }
-  el.innerHTML = warnings.map(w => `
-    <div class="warning-item">
+  el.innerHTML = warnings.map(w => {
+    // FIX: these were plain <div>s with no way to see more detail — tapping
+    // did nothing. JMA's own warning page supports deep-linking to a
+    // specific area via "#area_type=offices&area_code={code}" (confirmed
+    // against JMA's own forecast/warning pages, not guessed). For grouped
+    // rows (Hokkaido/Okinawa collapse several offices under one label — see
+    // groupWarningsByPrefecture), `code` is a comma-joined list; the first
+    // code is used as a representative link, since JMA's URL scheme only
+    // targets one area at a time.
+    const firstCode = String(w.code || '').split(',')[0];
+    const url = firstCode ? `https://www.jma.go.jp/bosai/warning/#area_type=offices&area_code=${encodeURIComponent(firstCode)}` : 'https://www.jma.go.jp/bosai/warning/';
+    return `
+    <a class="warning-item" href="${escapeHtml(url)}" target="_blank" rel="noopener">
       <span class="warning-pref">${escapeHtml(w.prefecture)}</span>
       <span class="warning-tags">${w.warnings.map(t=>`<em>${escapeHtml(t)}</em>`).join('')}</span>
-    </div>
-  `).join('');
+    </a>
+  `;
+  }).join('');
 }
 
 function renderQuakes(quakes, ok){

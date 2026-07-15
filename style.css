@@ -112,6 +112,7 @@ main{max-width:640px;margin:0 auto;padding:20px 16px 60px}
 .warning-item{
   display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;
   padding:10px 12px;background:rgba(224,87,79,.08);border:1px solid rgba(224,87,79,.25);border-radius:10px;
+  text-decoration:none;color:inherit;
 }
 .warning-pref{font-weight:700;font-size:13px}
 .warning-tags em{
