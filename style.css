@@ -57,7 +57,7 @@ main{max-width:640px;margin:0 auto;padding:20px 16px 60px}
 }
 
 .hero{padding:24px 4px 8px}
-.hero h1{font-size:28px;font-weight:800;letter-spacing:.04em;margin:0}
+.hero h1{font-size:38px;font-weight:800;letter-spacing:.04em;margin:0}
 .subtitle{color:var(--muted);margin:4px 0 16px;font-size:14px}
 .status-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .status-badge{
@@ -124,5 +124,5 @@ main{max-width:640px;margin:0 auto;padding:20px 16px 60px}
 }
 
 @media(max-width:400px){
-  .hero h1{font-size:24px}
+  .hero h1{font-size:32px}
 }
