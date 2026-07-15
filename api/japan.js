@@ -371,9 +371,20 @@ function clean(s=''){ return String(s).replace(/\s+/g,' ').trim(); }
 // came from; if the whole batch rejected, every source in it is
 // unreachable, regardless of whether `report` (the fallback placeholder
 // array) happens to contain an entry with this name.
+//
+// FIX (self-consistency): this originally defaulted to `true` ("ok") when
+// `sourceName` wasn't found anywhere in `report` — but that's exactly the
+// same "claim confirmed-fine when actually unverified" failure mode this
+// whole project has been designed against elsewhere (baseline/degraded
+// handling, warnings-vs-failure, etc.). If a collector gets renamed and a
+// call site's name string falls out of sync, silently returning "ok" would
+// hide that mismatch instead of surfacing it. Not found now means
+// "unverified", which is treated as not-ok.
 function isSourceOk(settledStatus, report, sourceName){
   if(settledStatus !== 'fulfilled') return false;
-  return report.find(r => r.name === sourceName)?.ok !== false;
+  const entry = report.find(r => r.name === sourceName);
+  if(!entry) return false;
+  return entry.ok !== false;
 }
 
 function titleStem(title){
