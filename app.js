@@ -34,9 +34,9 @@ async function loadData(){
 function fallbackView(error){
   return {
     ok:true, mode:'fallback', dataStatus:'FALLBACK — 取得失敗', sourceError:error,
-    updatedAt:new Date().toISOString(), news:[], newsCount:0, newsOk:false,
-    regionalNews:[], regionalNewsCount:0,
-    warnings:[], warningCount:0, warningsOk:false, earthquakes:[], quakeCount:0, quakesOk:false
+    updatedAt:new Date().toISOString(), news:[], newsOk:false,
+    regionalNews:[],
+    warnings:[], warningCount:0, warningsOk:false, earthquakes:[], quakesOk:false
   };
 }
 
@@ -46,10 +46,19 @@ function render(data){
   statusEl.className = 'status-badge ' + (data.mode === 'live' ? 'status-live' : 'status-degraded');
   $('updatedAt').textContent = data.updatedAt ? `更新: ${new Date(data.updatedAt).toLocaleTimeString('ja-JP')}` : '';
 
-  renderNews(data.news || [], data.newsCount ?? (data.news||[]).length, data.newsOk !== false);
-  renderRegionalNews(data.regionalNews || [], data.regionalNewsCount ?? (data.regionalNews||[]).length, data.newsOk !== false);
+  // FIX: news/regionalNews/earthquakes are all capped before being sent
+  // (30/20/10 respectively — see api/japan.js), but the count shown next to
+  // each heading used to prefer the backend's PRE-cap total (e.g.
+  // newsCount). That meant "地方の話題 89件" could show while only 20 items
+  // were actually visible on screen — a real mismatch, not just a rounding
+  // quirk, and it reads like missing content rather than a deliberate cap.
+  // Now the count always reflects what's actually rendered: the array's own
+  // length. Warnings is unaffected — that list is never capped, so its
+  // count already matched what's shown.
+  renderNews(data.news || [], (data.news || []).length, data.newsOk !== false);
+  renderRegionalNews(data.regionalNews || [], (data.regionalNews || []).length, data.newsOk !== false);
   renderWarnings(data.warnings || [], data.warningCount ?? (data.warnings||[]).length, data.warningsOk !== false);
-  renderQuakes(data.earthquakes || [], data.quakeCount ?? (data.earthquakes||[]).length, data.quakesOk !== false);
+  renderQuakes(data.earthquakes || [], data.quakesOk !== false);
 
   if(data.sourceError){
     console.warn('Japan Now source issues:', data.sourceError);
@@ -135,8 +144,14 @@ function renderWarnings(warnings, count, ok){
   `).join('');
 }
 
-function renderQuakes(quakes, count, ok){
-  $('quakeCount').textContent = `${count} 件`;
+function renderQuakes(quakes, ok){
+  // FIX: count is now derived from the array actually being rendered
+  // (already capped to 10 by the backend), filtered to exclude routine
+  // bulletins — this satisfies both the "count matches what's visible"
+  // fix and the earlier "定時 bulletins shouldn't inflate the count" fix at
+  // the same time, since both operate on the same already-sliced list.
+  const genuineCount = quakes.filter(q => !q.isRoutine).length;
+  $('quakeCount').textContent = `${genuineCount} 件`;
   const el = $('quakeList');
   if(!quakes.length){
     el.innerHTML = ok
