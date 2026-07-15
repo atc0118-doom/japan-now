@@ -190,11 +190,19 @@ async function fetchGoogleNewsJP(){
 function parseRss(xml, fallbackSource='RSS'){
   const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].map(m=>m[1]);
   return items.map(block=>{
-    const title = decodeXml((block.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/)?.[1] || block.match(/<title>([\s\S]*?)<\/title>/)?.[1] || '').replace(/ - [^-]+$/,''));
+    // FIX: this only stripped a trailing " - Outlet Name" suffix. TBS NEWS
+    // DIG (and likely other outlets) instead suffix with a pipe, e.g.
+    // "...【気象庁15日発表】 | TBS NEWS DIG (1ページ)", which passed straight
+    // through unstripped and produced an unusually long, awkward headline in
+    // the news list. Now strips both separator styles, and hard-caps the
+    // result length as a safety net for any outlet using a format neither
+    // pattern catches.
+    const rawTitle = decodeXml((block.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/)?.[1] || block.match(/<title>([\s\S]*?)<\/title>/)?.[1] || ''));
+    const title = clean(rawTitle.replace(/\s+[-|]\s+[^-|]+$/,'')).slice(0, 120);
     const url = decodeXml(block.match(/<link>([\s\S]*?)<\/link>/)?.[1] || '');
     const source = decodeXml(block.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1] || fallbackSource);
     const pub = decodeXml(block.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] || '');
-    return { title: clean(title), url, source: clean(source) || fallbackSource, published: pub };
+    return { title, url, source: clean(source) || fallbackSource, published: pub };
   }).filter(a=>a.title && a.url);
 }
 
@@ -235,7 +243,31 @@ async function fetchJMAOffices(){
   const r = await fetchWithTimeout(JMA_AREA_JSON_URL, { headers:{ 'user-agent':'JapanNow/1.0' } });
   if(!r.ok) throw new Error('jma_area ' + r.status);
   const j = await r.json();
-  const offices = Object.entries(j.offices || {}).map(([code, o])=>({ code, name: o.name }));
+
+  // FIX: previously this was just Object.entries(j.offices), which returns
+  // whatever incidental key order the JSON happened to use — not a
+  // geographic order. area.json's `centers` object already IS ordered
+  // north-to-south (010100 Hokkaido -> 010200 Tohoku -> 010300 Kanto Koshin
+  // -> ... -> 011100 Okinawa), and each center lists its member offices in
+  // `children`. Walking centers in their given order, then each center's
+  // children in their given order, produces a natural Hokkaido -> Okinawa
+  // sequence for free, using data JMA itself already sequenced this way —
+  // no separate prefecture-order table to maintain or get wrong.
+  const centers = j.centers || {};
+  const officesById = j.offices || {};
+  const orderedCodes = [];
+  for(const center of Object.values(centers)){
+    for(const code of (center.children || [])){
+      if(officesById[code] && !orderedCodes.includes(code)) orderedCodes.push(code);
+    }
+  }
+  // Any office not reachable via a center's children (shouldn't normally
+  // happen, but better to include it at the end than silently drop it).
+  for(const code of Object.keys(officesById)){
+    if(!orderedCodes.includes(code)) orderedCodes.push(code);
+  }
+
+  const offices = orderedCodes.map(code=>({ code, name: officesById[code].name }));
   CACHE.areaOffices = offices;
   CACHE.areaTs = now;
   return offices;
