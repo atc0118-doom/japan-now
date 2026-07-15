@@ -16,7 +16,8 @@ import {
   extractActiveWarningNames,
   parseRss,
   clean,
-  decodeXml
+  decodeXml,
+  groupWarningsByPrefecture
 } from '../api/japan.js';
 
 // Trimmed down but structurally real fixture (captured live, then trimmed
@@ -119,4 +120,77 @@ test('dedupeByTitleStem keeps genuinely distinct headlines', () => {
   ];
   const out = dedupeByTitleStem(items);
   assert.equal(out.length, 3);
+});
+
+// Regression tests for the "北海道から順番のがよくない？" fix: warnings should be
+// grouped by prefecture (collapsing Hokkaido's 8 offices and Okinawa's 4
+// into single rows) and preserve north-to-south input order.
+
+test('groupWarningsByPrefecture merges Hokkaido sub-region offices into one row', () => {
+  const officeResults = [
+    { office: { code:'011000', name:'宗谷地方' }, warnings: ['雷注意報'] },
+    { office: { code:'016000', name:'石狩・空知・後志地方' }, warnings: ['大雨注意報', '雷注意報'] },
+    { office: { code:'014030', name:'十勝地方' }, warnings: ['濃霧注意報'] }
+  ];
+  const result = groupWarningsByPrefecture(officeResults);
+  assert.equal(result.length, 1, 'all three Hokkaido sub-regions should collapse into a single row');
+  assert.equal(result[0].prefecture, '北海道');
+  assert.ok(result[0].warnings.includes('雷注意報'));
+  assert.ok(result[0].warnings.includes('大雨注意報'));
+  assert.ok(result[0].warnings.includes('濃霧注意報'));
+  // Deduplicated, not double-counted, even though 雷注意報 appeared in two offices.
+  assert.equal(result[0].warnings.filter(w=>w==='雷注意報').length, 1);
+});
+
+test('groupWarningsByPrefecture merges Okinawa sub-region offices into one row', () => {
+  const officeResults = [
+    { office: { code:'471000', name:'沖縄本島地方' }, warnings: ['波浪警報'] },
+    { office: { code:'473000', name:'宮古島地方' }, warnings: ['強風注意報'] }
+  ];
+  const result = groupWarningsByPrefecture(officeResults);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].prefecture, '沖縄県');
+});
+
+test('groupWarningsByPrefecture keeps Kagoshima mainland and Amami separate (deliberately not grouped)', () => {
+  const officeResults = [
+    { office: { code:'460100', name:'鹿児島県（奄美地方除く）' }, warnings: ['大雨警報'] },
+    { office: { code:'460040', name:'奄美地方' }, warnings: ['波浪警報'] }
+  ];
+  const result = groupWarningsByPrefecture(officeResults);
+  assert.equal(result.length, 2, 'Amami is geographically distant with materially different weather and should stay a separate row');
+});
+
+test('groupWarningsByPrefecture keeps ordinary prefectures as individual rows, unaffected by grouping', () => {
+  const officeResults = [
+    { office: { code:'130000', name:'東京都' }, warnings: ['雷注意報'] },
+    { office: { code:'270000', name:'大阪府' }, warnings: ['濃霧注意報'] }
+  ];
+  const result = groupWarningsByPrefecture(officeResults);
+  assert.equal(result.length, 2);
+  assert.deepEqual(result.map(r=>r.prefecture).sort(), ['大阪府','東京都']);
+});
+
+test('groupWarningsByPrefecture preserves north-to-south input order in its output', () => {
+  // Simulates the real fetchJMAOffices order: Hokkaido sub-regions first,
+  // then Kanto, then Okinawa last — output row order should follow the
+  // FIRST time each display label is encountered, in input order.
+  const officeResults = [
+    { office: { code:'011000', name:'宗谷地方' }, warnings: ['雷注意報'] },       // -> 北海道 (first seen here)
+    { office: { code:'130000', name:'東京都' }, warnings: ['濃霧注意報'] },        // -> 東京都
+    { office: { code:'016000', name:'石狩・空知・後志地方' }, warnings: ['大雨注意報'] }, // -> 北海道 again (already grouped)
+    { office: { code:'471000', name:'沖縄本島地方' }, warnings: ['波浪警報'] }       // -> 沖縄県
+  ];
+  const result = groupWarningsByPrefecture(officeResults);
+  assert.deepEqual(result.map(r=>r.prefecture), ['北海道', '東京都', '沖縄県'], 'output order should follow first-seen order, not re-sort alphabetically or otherwise');
+});
+
+test('groupWarningsByPrefecture skips offices with no active warnings', () => {
+  const officeResults = [
+    { office: { code:'130000', name:'東京都' }, warnings: [] },
+    { office: { code:'270000', name:'大阪府' }, warnings: ['雷注意報'] }
+  ];
+  const result = groupWarningsByPrefecture(officeResults);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].prefecture, '大阪府');
 });
