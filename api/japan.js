@@ -273,6 +273,16 @@ function parseRss(xml, fallbackSource='RSS'){
 // story that discusses a foreign country without using any of the
 // JAPAN_RELEVANCE_TERMS below — an accepted, documented tradeoff rather
 // than a hidden one.
+// POLICY — deliberately NOT added here: 中国 (China), 米国/アメリカ (US), 韓国
+// (South Korea), or similar major powers. These are almost always
+// legitimately Japan-relevant (Japan-China relations, US-Japan security,
+// export controls, tariffs) — adding them would filter out real, important
+// stories far more often than it would catch a genuinely unrelated one.
+// A real observed case ("米、中国の選挙介入能力巡る機密情報公開を検討か
+// トランプ氏演説で" — a US-China story with no Japan angle, matched via the
+// generic "選挙" keyword) was deliberately left unfiltered for this reason.
+// This list is reserved for countries/figures that are rarely, if ever,
+// the subject of genuinely Japan-relevant coverage on this dashboard.
 const FOREIGN_ONLY_INDICATOR_TERMS = ['ロシア','ウクライナ','イスラエル','ガザ','シリア','レバノン','ライアンエアー','イラン','英国','英首相','バーナム','ガリバフ','ゼレンスキー','アルゼンチン'];
 const JAPAN_RELEVANCE_TERMS = ['日本','日系','邦人','在日','対日','日米','日露','日中','日韓','日ロ','日英','来日','訪日'];
 function isForeignOnlyStory(title){
