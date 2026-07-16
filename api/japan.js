@@ -273,7 +273,7 @@ function parseRss(xml, fallbackSource='RSS'){
 // story that discusses a foreign country without using any of the
 // JAPAN_RELEVANCE_TERMS below — an accepted, documented tradeoff rather
 // than a hidden one.
-const FOREIGN_ONLY_INDICATOR_TERMS = ['ロシア','ウクライナ','イスラエル','ガザ','シリア','レバノン','ライアンエアー','イラン','英国','英首相','バーナム','ガリバフ'];
+const FOREIGN_ONLY_INDICATOR_TERMS = ['ロシア','ウクライナ','イスラエル','ガザ','シリア','レバノン','ライアンエアー','イラン','英国','英首相','バーナム','ガリバフ','ゼレンスキー','アルゼンチン'];
 const JAPAN_RELEVANCE_TERMS = ['日本','日系','邦人','在日','対日','日米','日露','日中','日韓','日ロ','日英','来日','訪日'];
 function isForeignOnlyStory(title){
   const t = String(title || '');
