@@ -33,7 +33,9 @@ main{max-width:640px;margin:0 auto;padding:20px 16px 60px}
 
 @media(min-width:900px){
   main{max-width:1180px}
-  .dashboard-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:20px;align-items:start}
+  .dashboard-grid{display:flex;align-items:flex-start;gap:20px;position:relative}
+  .col-main{flex:1.6}
+  .col-side{flex:1}
   .col-main,.col-side{display:flex;flex-direction:column;gap:20px}
   .card{margin-top:0}
   /* FIX: right column ended early on desktop, leaving a large visual gap
@@ -46,24 +48,18 @@ main{max-width:640px;margin:0 auto;padding:20px 16px 60px}
     display:block;color:var(--muted);font-size:11px;line-height:1.6;
     padding:4px 2px 0;
   }
-  /* FIX: News is naturally much longer than warnings+earthquakes combined,
-     so the right column was finishing early and leaving a large blank gap
-     below it while the page kept scrolling through news — visually
-     lopsided. Sticky-positioning the right column keeps it in view instead
-     of leaving dead space; it stays pinned near the top of the viewport
-     until its own content (or the end of the news column) scrolls past it,
-     which is the standard "sidebar" pattern most desktop news sites use.
-     FIX: this originally also had max-height:calc(100vh - 40px) plus
-     overflow-y:auto, so a long warnings list (16+ prefectures) combined
-     with the earthquake card could exceed that height and turn .col-side
-     into its OWN internal scroll region. Under touch, a sticky element that
-     also scrolls internally reads as "still moving" even though it's
-     technically pinned — dragging over that area scrolls its own content
-     rather than feeling anchored. Dropping the internal scroll constraint
-     means .col-side is just a plain sticky block: it pins near the top and
-     rides along with whatever height its content naturally needs, with no
-     separate scroll interaction to fight against on touch. */
-  .col-side{position:sticky;top:20px}
+  /* FIX: this used to be plain CSS `position:sticky`, tried first inside
+     CSS Grid, then inside Flexbox after the Grid version showed the same
+     symptom (a screen-recording showed the sidebar scroll normally, then —
+     partway down the page — jump backward to its own earlier content
+     instead of just detaching once at the very bottom, in either layout).
+     Handing this to a few lines of JS (see app.js: initStickySidebar)
+     removes all ambiguity about containing blocks / stacking contexts /
+     browser-specific sticky quirks: the scroll position is measured
+     directly and the column's position is set explicitly on every scroll
+     tick, so there's no CSS mechanism left that could behave
+     unpredictably. .col-side's flex/gap rules above still control its
+     internal layout; JS only ever sets position/top/left/width inline. */
 }
 
 .hero{padding:24px 4px 8px}

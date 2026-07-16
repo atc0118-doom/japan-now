@@ -59,6 +59,11 @@ function render(data){
   if(data.sourceError){
     console.warn('Japan Now source issues:', data.sourceError);
   }
+
+  // Content height (especially the warnings list length) can change
+  // between refreshes, which shifts where the sidebar should stop
+  // sticking — recalculate after the DOM actually updates.
+  requestAnimationFrame(updateStickySidebar);
 }
 
 // FIX: source name and title used to sit side-by-side in a 3-column grid
@@ -157,5 +162,92 @@ function renderQuakes(quakes, ok){
   `).join('');
 }
 
+// FIX: CSS `position:sticky` for the right column was tried twice (first
+// inside CSS Grid, then inside Flexbox after the Grid version showed the
+// same symptom) — a screen recording showed the sidebar scroll normally at
+// first, then partway down the page suddenly jump BACKWARD to earlier
+// content instead of properly detaching once at the very bottom, in both
+// layouts. Rather than guess at a third CSS-only fix, this measures scroll
+// position directly and sets the sidebar's position explicitly on every
+// scroll tick — there's no CSS sticky/containing-block mechanism left that
+// could behave unpredictably, since nothing is delegated to the browser's
+// own sticky implementation at all.
+const STICKY_BREAKPOINT = 900;
+const STICKY_OFFSET = 20;
+const STICKY_GAP = 20;
+let stickySideWidth = 0, stickyMainWidth = 0;
+
+function resetStickySidebar(side, main){
+  side.style.position = '';
+  side.style.top = '';
+  side.style.left = '';
+  side.style.width = '';
+  main.style.width = '';
+}
+
+function updateStickySidebar(){
+  const side = document.querySelector('.col-side');
+  const main = document.querySelector('.col-main');
+  const grid = document.querySelector('.dashboard-grid');
+  if(!side || !main || !grid) return;
+
+  if(window.innerWidth < STICKY_BREAKPOINT){
+    resetStickySidebar(side, main);
+    return;
+  }
+
+  // Only recapture natural widths while the sidebar is in normal document
+  // flow — once it's fixed/absolute its own width is whatever we set it
+  // to, not its natural flex-computed width, so capturing at that point
+  // would just lock in a stale value.
+  if(side.style.position !== 'fixed' && side.style.position !== 'absolute'){
+    stickySideWidth = side.getBoundingClientRect().width;
+    stickyMainWidth = main.getBoundingClientRect().width;
+  }
+  if(!stickySideWidth || !stickyMainWidth) return; // not laid out yet
+
+  const gridRect = grid.getBoundingClientRect();
+  const scrollY = window.scrollY;
+  const gridTop = gridRect.top + scrollY;
+  const gridHeight = grid.offsetHeight;
+  const sideHeight = side.offsetHeight;
+  const stickyStart = gridTop - STICKY_OFFSET;
+  const stickyEnd = gridTop + gridHeight - sideHeight - STICKY_OFFSET;
+
+  main.style.width = stickyMainWidth + 'px';
+  side.style.width = stickySideWidth + 'px';
+
+  if(scrollY <= stickyStart || stickyEnd <= stickyStart){
+    // Grid hasn't scrolled far enough yet, or the sidebar is already taller
+    // than the grid (nothing to stick within) — stay in normal flow.
+    side.style.position = '';
+    side.style.top = '';
+    side.style.left = '';
+  } else if(scrollY >= stickyEnd){
+    // Reached the bottom of the grid: stop following the viewport and pin
+    // to the bottom of the grid instead, so it doesn't run past the end of
+    // the news column.
+    side.style.position = 'absolute';
+    side.style.top = (gridHeight - sideHeight) + 'px';
+    side.style.left = (stickyMainWidth + STICKY_GAP) + 'px';
+  } else {
+    side.style.position = 'fixed';
+    side.style.top = STICKY_OFFSET + 'px';
+    side.style.left = (gridRect.left + stickyMainWidth + STICKY_GAP) + 'px';
+  }
+}
+
+function initStickySidebar(){
+  window.addEventListener('scroll', updateStickySidebar, { passive:true });
+  window.addEventListener('resize', () => {
+    const side = document.querySelector('.col-side');
+    const main = document.querySelector('.col-main');
+    if(side && main) resetStickySidebar(side, main);
+    requestAnimationFrame(updateStickySidebar);
+  });
+  updateStickySidebar();
+}
+
+initStickySidebar();
 loadData();
 setInterval(loadData, 60000);
