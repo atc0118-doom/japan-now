@@ -283,7 +283,12 @@ function parseRss(xml, fallbackSource='RSS'){
 // generic "選挙" keyword) was deliberately left unfiltered for this reason.
 // This list is reserved for countries/figures that are rarely, if ever,
 // the subject of genuinely Japan-relevant coverage on this dashboard.
-const FOREIGN_ONLY_INDICATOR_TERMS = ['ロシア','ウクライナ','イスラエル','ガザ','シリア','レバノン','ライアンエアー','イラン','英国','英首相','バーナム','ガリバフ','ゼレンスキー','アルゼンチン'];
+const FOREIGN_ONLY_INDICATOR_TERMS = ['ロシア','ウクライナ','イスラエル','ガザ','シリア','レバノン','ライアンエアー','イラン','英国','英首相','バーナム','ガリバフ','ゼレンスキー','アルゼンチン','リトアニア','チリ','スペイン','ドイツ','独首相'];
+// NOTE: bare "独" is deliberately NOT used for Germany, even though it's a
+// common abbreviation in headlines (独首相, 独政府) — "独" alone is also an
+// extremely common kanji in everyday Japanese words with zero connection to
+// Germany (独自, 独占, 単独, 独身), so it would filter out large numbers of
+// unrelated domestic stories. Only the safe compound "独首相" is used.
 const JAPAN_RELEVANCE_TERMS = ['日本','日系','邦人','在日','対日','日米','日露','日中','日韓','日ロ','日英','来日','訪日'];
 function isForeignOnlyStory(title){
   const t = String(title || '');
