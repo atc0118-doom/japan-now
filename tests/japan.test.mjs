@@ -414,3 +414,19 @@ test('isForeignOnlyStory filters an Argentina World Cup story with no Japan ment
 test('isForeignOnlyStory does NOT filter Japan\'s own World Cup coverage just because it also mentions "W杯"', () => {
   assert.equal(isForeignOnlyStory('W杯 日本代表、決勝トーナメント進出決定'), false);
 });
+
+test('isForeignOnlyStory filters Lithuania, Chile, and Spain stories with no Japan mention', () => {
+  assert.equal(isForeignOnlyStory('リトアニア新首相、対中関係改善に意欲 台湾代表処設置'), true);
+  assert.equal(isForeignOnlyStory('チリ政府、26年成長率見通し1.8%に下げ 銅価格予想は上方修正'), true);
+  assert.equal(isForeignOnlyStory('サッカーW杯 北中米大会 スペインの選手たちが決勝の地へ'), true);
+});
+
+test('isForeignOnlyStory filters a German Chancellor story via the safe "独首相" compound term', () => {
+  assert.equal(isForeignOnlyStory('独首相、債務ブレーキ再改正の可能性を否定'), true);
+});
+
+test('isForeignOnlyStory does NOT filter ordinary Japanese words that happen to contain 独 (独自/独占/単独) unrelated to Germany', () => {
+  assert.equal(isForeignOnlyStory('日本企業が独自技術で世界初の製品を開発'), false);
+  assert.equal(isForeignOnlyStory('首相への独占インタビュー、皇室典範改正について語る'), false);
+  assert.equal(isForeignOnlyStory('自民党単独で過半数維持できるか'), false);
+});
