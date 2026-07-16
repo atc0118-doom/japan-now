@@ -398,3 +398,19 @@ test('isForeignOnlyStory filters a story where "国会" is used generically for 
 test('isForeignOnlyStory does NOT filter a genuinely Japan-relevant story about a foreign leader visiting Japan (来日/訪日, no literal 日本)', () => {
   assert.equal(isForeignOnlyStory('英首相が来日、経済協力を協議'), false);
 });
+
+test('isForeignOnlyStory filters a Zelensky story that mentions him by name without repeating "ウクライナ"', () => {
+  assert.equal(isForeignOnlyStory('ゼレンスキー大統領、和平交渉の条件を提示'), true);
+});
+
+test('isForeignOnlyStory does NOT filter a Zelensky story that is genuinely Japan-relevant (来日)', () => {
+  assert.equal(isForeignOnlyStory('ゼレンスキー氏来日、日本との協力表明'), false);
+});
+
+test('isForeignOnlyStory filters an Argentina World Cup story with no Japan mention', () => {
+  assert.equal(isForeignOnlyStory('W杯 アルゼンチン 2大会連続決勝へ メッシ2アシスト【速報中】'), true);
+});
+
+test('isForeignOnlyStory does NOT filter Japan\'s own World Cup coverage just because it also mentions "W杯"', () => {
+  assert.equal(isForeignOnlyStory('W杯 日本代表、決勝トーナメント進出決定'), false);
+});
